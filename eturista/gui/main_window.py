@@ -53,7 +53,8 @@ class MainWindow(QMainWindow):
         self.update_worker: UpdateCheckWorker | None = None
 
         self.setWindowTitle("eTurista — prijava gostiju")
-        self.resize(1180, 760)
+        # Široko taman da sve kolone stanu bez vodoravnog klizača.
+        self.resize(1360, 780)
 
         self._build_ui()
         self._build_menu()

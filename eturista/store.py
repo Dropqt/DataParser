@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS guests (
     surname       TEXT NOT NULL DEFAULT '',
     given_name    TEXT NOT NULL DEFAULT '',
     jmbg          TEXT NOT NULL DEFAULT '',
-    date_raw      TEXT NOT NULL DEFAULT '',
+    arrival       TEXT NOT NULL DEFAULT '',
+    days          TEXT NOT NULL DEFAULT '',
     status        TEXT NOT NULL DEFAULT 'PENDING',
     error_kind    TEXT,
     error_message TEXT,
@@ -91,7 +92,30 @@ class Store:
         # WAL: upis se odmah snima na disk, pa nagli prekid ne gubi poslednje goste.
         self._conn.execute("PRAGMA journal_mode = WAL")
         self._conn.executescript(SCHEMA)
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Dodaj kolone koje fale u bazi napravljenoj starijom verzijom programa.
+
+        ``CREATE TABLE IF NOT EXISTS`` ne dira postojeću tabelu, pa se nove kolone
+        moraju dodati ručno — inače bi stara baza rušila program posle ažuriranja.
+        """
+        existing = {
+            row["name"]
+            for row in self._conn.execute("PRAGMA table_info(guests)").fetchall()
+        }
+        for column, definition in (
+            ("arrival", "TEXT NOT NULL DEFAULT ''"),
+            ("days", "TEXT NOT NULL DEFAULT ''"),
+        ):
+            if column not in existing:
+                self._conn.execute(f"ALTER TABLE guests ADD COLUMN {column} {definition}")
+
+        # Baza iz verzije sa opsegom "05.10-10.10" u jednoj koloni: prenesi u `arrival`,
+        # odakle validacija i dalje ume da pročita opseg.
+        if "date_raw" in existing and "arrival" not in existing:
+            self._conn.execute("UPDATE guests SET arrival = date_raw WHERE arrival = ''")
 
     def __enter__(self) -> "Store":
         return self
@@ -135,15 +159,16 @@ class Store:
         error = guest.error
         self._conn.execute(
             """
-            INSERT INTO guests (batch_id, row_no, surname, given_name, jmbg, date_raw,
+            INSERT INTO guests (batch_id, row_no, surname, given_name, jmbg, arrival, days,
                                 status, error_kind, error_message, error_detail,
                                 screenshot, pdf_path, attempts, selected, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (batch_id, row_no) DO UPDATE SET
                 surname = excluded.surname,
                 given_name = excluded.given_name,
                 jmbg = excluded.jmbg,
-                date_raw = excluded.date_raw,
+                arrival = excluded.arrival,
+                days = excluded.days,
                 status = excluded.status,
                 error_kind = excluded.error_kind,
                 error_message = excluded.error_message,
@@ -160,7 +185,8 @@ class Store:
                 guest.surname or guest.surname_raw,
                 guest.given_name or guest.given_name_raw,
                 guest.jmbg,
-                guest.date_raw,
+                guest.arrival_raw,
+                guest.days_raw,
                 guest.status.value,
                 error.kind.value if error else None,
                 error.message if error else None,
@@ -267,7 +293,8 @@ def _row_to_guest(row: sqlite3.Row, default_year: int | None) -> Guest:
         surname_raw=row["surname"] or "",
         given_name_raw=row["given_name"] or "",
         jmbg_raw=row["jmbg"] or "",
-        date_raw=row["date_raw"] or "",
+        arrival_raw=row["arrival"] or "",
+        days_raw=row["days"] or "",
         pdf_path=row["pdf_path"],
         attempts=int(row["attempts"] or 0),
         selected=bool(row["selected"]),

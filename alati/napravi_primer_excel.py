@@ -10,8 +10,8 @@ tipfeler vidi već u glavnoj tabeli, pre nego što se bilo šta kopira u program
 namerno pisane bez LET() i drugih novijih funkcija, da rade i u starijem Excelu i u
 LibreOffice-u.
 
-Raspored kolona A-G je **isti kao izlaz iz aplikacije** (``models.EXPORT_HEADERS``), pa se
-rezultat ture lepi preko A2 bez pomeranja ičega. H je provera JMBG-a, I-L su pomoćne
+Raspored kolona A-H je **isti kao izlaz iz aplikacije** (``models.EXPORT_HEADERS``), pa se
+rezultat ture lepi preko A2 bez pomeranja ičega. I je provera JMBG-a, J-M su pomoćne
 kolone iza nje i sakrivene su.
 """
 
@@ -36,18 +36,22 @@ HEADERS = [
     ("Ime", 14),
     ("Prezime", 16),
     ("JMBG", 15),
-    ("Datum", 20),
+    ("Dolazak", 12),
+    ("Dana", 7),
     ("STATUS", 12),
     ("RAZLOG", 38),
     ("PDF", 26),
     ("PROVERA JMBG", 34),
 ]
-#: Pomoćne kolone (sakrivene) — postoje samo da bi formula u H bila čitljiva.
+#: Pomoćne kolone (sakrivene) — postoje samo da bi formula u I bila čitljiva.
 HELPERS = [("zbir", 8), ("kontrolna", 10), ("godina", 8), ("dat.rođ.", 10)]
 
-VISIBLE = "ABCDEFGH"
-LAST_VISIBLE = "H"
-FIRST_HELPER, LAST_HELPER = "I", "L"
+VISIBLE = "ABCDEFGHI"
+LAST_VISIBLE = "I"
+FIRST_HELPER, LAST_HELPER = "J", "M"
+
+#: Koliko noćenja se podrazumeva. Mora da odgovara validation.DEFAULT_DAYS.
+DEFAULT_DAYS = 5
 
 GREEN = PatternFill("solid", start_color="FFC6EFCE")
 RED = PatternFill("solid", start_color="FFFFC7CE")
@@ -82,17 +86,18 @@ def broken_jmbg(first_twelve: str) -> str:
 #: tom neslaganju najlakše primeti da je neko pogrešio cifru.
 #: Poslednja dva reda su namerno pokvarena da se vidi kako provera reaguje.
 #: Redom: ime, prezime, JMBG, datum.
+#: Redom: ime, prezime, JMBG, datum dolaska, broj noćenja ("" = podrazumevanih 5).
 SAMPLE = [
     #                            DD MM GGG RR BBB
-    ("Marko", "Petrović", jmbg("010199071012"), "05.10-10.10"),    # 01.01.1990, M
-    ("Ana", "Jovanović", jmbg("230799575544"), "05.10-10.10"),     # 23.07.1995, Ž
-    ("Jovan", "Ilić", jmbg("150398871001"), "06.10-12.10"),        # 15.03.1988, M
-    ("Nikola", "Đorđević", jmbg("110599270012"), "06.10-12.10"),   # 11.05.1992, M
-    ("Milica", "Marković", jmbg("290200471505"), "07.10-14.10"),   # 29.02.2004, Ž
+    ("Marko", "Petrović", jmbg("010199071012"), "05.10.2026", ""),    # 01.01.1990, M
+    ("Ana", "Jovanović", jmbg("230799575544"), "05.10.2026", ""),     # 23.07.1995, Ž
+    ("Jovan", "Ilić", jmbg("150398871001"), "06.10.2026", 7),         # 15.03.1988, M
+    ("Nikola", "Đorđević", jmbg("110599270012"), "06.10.2026", ""),   # 11.05.1992, M
+    ("Milica", "Marković", jmbg("290200471505"), "07.10.2026", 10),   # 29.02.2004, Ž
     # pokvarena poslednja cifra -> "Pogrešna kontrolna cifra"
-    ("Stefan", "Nikolić", broken_jmbg("070300771003"), "07.10-14.10"),
+    ("Stefan", "Nikolić", broken_jmbg("070300771003"), "07.10.2026", ""),
     # 12 cifara, kao kad Excel pojede vodeću nulu -> "Nema 13 cifara"
-    ("Jelena", "Simić", jmbg("030697875501")[1:], "08.10-15.10"),
+    ("Jelena", "Simić", jmbg("030697875501")[1:], "08.10.2026", ""),
 ]
 
 
@@ -111,29 +116,31 @@ def build_formulas(row: int) -> dict[str, str]:
 
     year = f"IF(VALUE(MID({c},5,3))>=800,1000,2000)+VALUE(MID({c},5,3))"
     day, month = f"VALUE(MID({c},1,2))", f"VALUE(MID({c},3,2))"
-    birth = f"DATE(K{row},{month},{day})"
+    birth = f"DATE(L{row},{month},{day})"
 
     return {
-        # I: zbir sa težinama
-        f"I{row}": f'=IFERROR(IF(LEN({c})<>13,"",{weighted}),"")',
-        # J: kontrolna cifra — ako ispadne 10 ili 11, ona je 0
-        f"J{row}": f'=IF(I{row}="","",IF(11-MOD(I{row},11)>9,0,11-MOD(I{row},11)))',
-        # K: godina rođenja (GGG je godina po modulu 1000; 800+ znači 19xx)
-        f"K{row}": f'=IFERROR(IF(LEN({c})<>13,"",{year}),"")',
-        # L: datum rođenja — prazno ako taj datum ne postoji.
+        # J: zbir sa težinama
+        f"J{row}": f'=IFERROR(IF(LEN({c})<>13,"",{weighted}),"")',
+        # K: kontrolna cifra — ako ispadne 10 ili 11, ona je 0
+        f"K{row}": f'=IF(J{row}="","",IF(11-MOD(J{row},11)>9,0,11-MOD(J{row},11)))',
+        # L: godina rođenja (GGG je godina po modulu 1000; 800+ znači 19xx)
+        f"L{row}": f'=IFERROR(IF(LEN({c})<>13,"",{year}),"")',
+        # M: datum rođenja — prazno ako taj datum ne postoji.
         # Excel DATE ne greši na 31.02, nego prevrne na mart, pa se dan i mesec proveravaju.
-        f"L{row}": (
-            f'=IFERROR(IF(K{row}="","",'
+        f"M{row}": (
+            f'=IFERROR(IF(L{row}="","",'
             f'IF(AND(DAY({birth})={day},MONTH({birth})={month}),{birth},"")),"")'
         ),
-        # H: poruka o ispravnosti — ista logika kao u aplikaciji
-        f"H{row}": (
+        # E: broj noćenja se podrazumeva čim se upiše gost; prekucaj ako je drugačije
+        f"E{row}": f'=IF(A{row}="","",{DEFAULT_DAYS})',
+        # I: poruka o ispravnosti JMBG-a — ista logika kao u aplikaciji
+        f"I{row}": (
             f'=IF({c}="","",'
             f'IF(LEN({c})<>13,"Nema 13 cifara (ima "&LEN({c})&")",'
-            f'IF(J{row}="","JMBG sadrži nešto što nije cifra",'
-            f'IF(L{row}="","Nepostojeći datum rođenja",'
-            f'IF(VALUE(MID({c},13,1))<>J{row},'
-            f'"Pogrešna kontrolna cifra — treba "&J{row},'
+            f'IF(K{row}="","JMBG sadrži nešto što nije cifra",'
+            f'IF(M{row}="","Nepostojeći datum rođenja",'
+            f'IF(VALUE(MID({c},13,1))<>K{row},'
+            f'"Pogrešna kontrolna cifra — treba "&K{row},'
             f'"✓ ispravan")))))'
         ),
     }
@@ -155,19 +162,28 @@ def build_guests_sheet(workbook: Workbook):
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = f"A1:{LAST_VISIBLE}{ROWS + 1}"
 
-    for offset, (given, surname, id_number, dates) in enumerate(SAMPLE):
+    explicit_days: dict[int, int] = {}
+    for offset, (given, surname, id_number, arrival, days) in enumerate(SAMPLE):
         row = offset + 2
         sheet[f"A{row}"] = given
         sheet[f"B{row}"] = surname
         sheet[f"C{row}"] = id_number
-        sheet[f"D{row}"] = dates
+        sheet[f"D{row}"] = arrival
+        if days:
+            explicit_days[row] = int(days)
 
     for row in range(2, ROWS + 2):
         for reference, formula in build_formulas(row).items():
             sheet[reference] = formula
 
+        # Gde je broj noćenja drugačiji od podrazumevanog, upisuje se preko formule —
+        # isto što korisnik radi kad prekuca vrednost.
+        if row in explicit_days:
+            sheet[f"E{row}"] = explicit_days[row]
+
         sheet[f"C{row}"].number_format = "@"      # tekst, da vodeća nula preživi
         sheet[f"E{row}"].alignment = Alignment(horizontal="center")
+        sheet[f"F{row}"].alignment = Alignment(horizontal="center")
         for column in VISIBLE:
             sheet[f"{column}{row}"].border = BOX
 
@@ -179,18 +195,18 @@ def build_guests_sheet(workbook: Workbook):
 
 
 def _add_conditional_formatting(sheet) -> None:
-    span = f"H2:H{ROWS + 1}"
+    span = f"I2:I{ROWS + 1}"
     sheet.conditional_formatting.add(
         span,
-        FormulaRule(formula=['LEFT($H2,1)="✓"'], fill=GREEN, font=GREEN_TEXT, stopIfTrue=True),
+        FormulaRule(formula=['LEFT($I2,1)="✓"'], fill=GREEN, font=GREEN_TEXT, stopIfTrue=True),
     )
     sheet.conditional_formatting.add(
         span,
-        FormulaRule(formula=['$H2<>""'], fill=RED, font=RED_TEXT),
+        FormulaRule(formula=['$I2<>""'], fill=RED, font=RED_TEXT),
     )
 
     # STATUS kolona — popunjava se lepljenjem rezultata iz aplikacije.
-    status = f"E2:E{ROWS + 1}"
+    status = f"F2:F{ROWS + 1}"
     for value, fill, font in (
         ("OK", GREEN, GREEN_TEXT),
         ("GREŠKA", RED, RED_TEXT),
@@ -204,12 +220,12 @@ def _add_conditional_formatting(sheet) -> None:
 
     # Red se blago oboji čim STATUS kaže da je gost pao — lakše se skenira lista.
     sheet.conditional_formatting.add(
-        f"A2:D{ROWS + 1}",
-        FormulaRule(formula=['$E2="GREŠKA"'], fill=RED),
+        f"A2:E{ROWS + 1}",
+        FormulaRule(formula=['$F2="GREŠKA"'], fill=RED),
     )
     sheet.conditional_formatting.add(
-        f"A2:D{ROWS + 1}",
-        FormulaRule(formula=['$E2="OK"'], fill=GREEN),
+        f"A2:E{ROWS + 1}",
+        FormulaRule(formula=['$F2="OK"'], fill=GREEN),
     )
 
 
@@ -222,29 +238,31 @@ def build_instructions_sheet(workbook: Workbook) -> None:
         ("naslov", "Kako se koristi ova tabela"),
         ("", ""),
         ("podnaslov", "1. Unos gostiju"),
-        ("", "Popunjavaj kolone A-D: Ime, Prezime, JMBG, Datum."),
+        ("", "Popunjavaj kolone A-E: Ime, Prezime, JMBG, Dolazak, Dana."),
         ("", "JMBG kolona je formatirana kao TEKST — bez toga Excel pojede vodeću nulu kod"),
         ("", "gostiju rođenih 1-9. u mesecu, pa umesto 13 ostane 12 cifara."),
-        ("", "Datum piši kao 05.10-10.10 ili 05.10.2026-10.10.2026 — oba se prepoznaju."),
+        ("", "Dolazak piši kao 05.10 ili 05.10.2026 — oba se prepoznaju."),
+        ("", f"Dana se popunjava samo od sebe na {DEFAULT_DAYS}; prekucaj ako je boravak duži."),
+        ("", f"'{DEFAULT_DAYS} dana' znači {DEFAULT_DAYS} noćenja: dolazak 05.10 -> odlazak 10.10."),
         ("", ""),
-        ("podnaslov", "2. Provera JMBG-a (kolona H)"),
+        ("podnaslov", "2. Provera JMBG-a (kolona I)"),
         ("", "Računa se automatski, po zvaničnoj formuli za kontrolnu cifru."),
         ("", "Zeleno '✓ ispravan' znači da broj matematički može da postoji."),
         ("", "Crveno kaže tačno šta ne valja, npr. 'Pogrešna kontrolna cifra — treba 8'."),
-        ("", "Kolone I-L su pomoćne (sakrivene) — služe samo formuli u koloni H. Ne diraj ih."),
+        ("", "Kolone J-M su pomoćne (sakrivene) — služe samo formuli u koloni I. Ne diraj ih."),
         ("", ""),
         ("napomena", "Provera hvata tipfelere, ali ne može da zna da li broj zaista pripada tom čoveku."),
         ("napomena", "To utvrđuje tek portal — i to se posle vidi u koloni RAZLOG."),
         ("", ""),
         ("podnaslov", "3. Slanje u aplikaciju"),
-        ("", "Označi kolone A-D za grupu gostiju koju prijavljuješ (5, 10, 30 — koliko hoćeš),"),
+        ("", "Označi kolone A-E za grupu gostiju koju prijavljuješ (5, 10, 30 — koliko hoćeš),"),
         ("", "Ctrl+C, pa u aplikaciji Ctrl+V."),
         ("", ""),
         ("podnaslov", "4. Vraćanje rezultata"),
         ("", "Kad se tura završi, u aplikaciji Ctrl+C i ovde zalepi preko kolone A za te goste."),
-        ("", "Popuniće se i E (STATUS), F (RAZLOG) i G (PDF). Bojenje je već podešeno:"),
+        ("", "Popuniće se i F (STATUS), G (RAZLOG) i H (PDF). Bojenje je već podešeno:"),
         ("", "OK = zeleno, GREŠKA = crveno, PRESKOČEN = sivo."),
-        ("", "Kolone H-L su formule i ostaju netaknute jer su desno od zalepljenog."),
+        ("", "Kolone I-M su formule i ostaju netaknute jer su desno od zalepljenog."),
         ("", ""),
         ("podnaslov", "Napomena"),
         ("", "Redovi 2-8 su izmišljeni primeri — obriši ih pre pravog rada."),

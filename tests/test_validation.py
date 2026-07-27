@@ -165,3 +165,102 @@ def test_name_whitespace_is_normalized():
 )
 def test_latinize(text, expected):
     assert latinize(text) == expected
+
+
+# --- dolazak + broj dana ----------------------------------------------------
+
+from eturista.validation import (  # noqa: E402
+    DEFAULT_DAYS,
+    parse_arrival,
+    parse_days,
+    resolve_stay,
+    stay_from_days,
+)
+
+
+def test_default_days_is_five():
+    assert DEFAULT_DAYS == 5
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [("05.10", date(2026, 10, 5)), ("5.10.2026", date(2026, 10, 5)),
+     ("05/10", date(2026, 10, 5)), ("05.10.", date(2026, 10, 5)),
+     ("05.10.26", date(2026, 10, 5))],
+)
+def test_parse_arrival_formats(raw, expected):
+    assert parse_arrival(raw, 2026) == expected
+
+
+@pytest.mark.parametrize("raw, expected", [("5", 5), ("7", 7), ("", 5), ("  10 ", 10),
+                                           ("5 dana", 5), ("7 noćenja", 7)])
+def test_parse_days_formats(raw, expected):
+    assert parse_days(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["0", "-3", "500", "abc"])
+def test_parse_days_rejects_nonsense(raw):
+    with pytest.raises(ValidationError):
+        parse_days(raw)
+
+
+def test_five_days_means_five_nights():
+    """05.10 + 5 dana = 10.10 — isto kao stari zapis 05.10-10.10."""
+    stay = stay_from_days(date(2026, 10, 5), 5)
+    assert stay.departure == date(2026, 10, 10)
+    assert stay.nights == 5
+    assert stay.format() == parse_stay("05.10-10.10", 2026).format()
+
+
+def test_resolve_stay_uses_days_column():
+    stay = resolve_stay("05.10", "7", 2026)
+    assert (stay.arrival, stay.departure) == (date(2026, 10, 5), date(2026, 10, 12))
+
+
+def test_resolve_stay_defaults_when_days_missing():
+    assert resolve_stay("05.10", "", 2026).nights == DEFAULT_DAYS
+
+
+def test_resolve_stay_crosses_new_year():
+    stay = resolve_stay("28.12", "7", 2026)
+    assert stay.departure == date(2027, 1, 4)
+
+
+def test_resolve_stay_accepts_old_range_and_ignores_days():
+    """Stare liste imaju opseg u koloni sa datumom; kolona Dana se tad ne gleda."""
+    stay = resolve_stay("05.10-10.10", "99", 2026)
+    assert (stay.arrival, stay.departure) == (date(2026, 10, 5), date(2026, 10, 10))
+
+
+def test_resolve_stay_requires_arrival():
+    with pytest.raises(ValidationError) as exc:
+        resolve_stay("", "5", 2026)
+    assert exc.value.kind is ErrorKind.MISSING_FIELD
+
+
+def test_resolve_stay_rejects_unreadable_arrival():
+    with pytest.raises(ValidationError, match="datum dolaska"):
+        resolve_stay("bezveze", "5", 2026)
+
+
+def test_all_field_problems_are_reported_at_once():
+    """Stajanje na prvoj grešci bi značilo popravi-pa-otkrij-sledeću."""
+    from eturista.models import Guest
+
+    guest = Guest(row=1, surname_raw="Marković", given_name_raw="Stefan",
+                  jmbg_raw="0703007100339", arrival_raw="bezveze", days_raw="5")
+    assert not guest.validate(2026)
+    assert "kontrolna cifra" in guest.error.text
+    assert "datum dolaska" in guest.error.text
+
+
+def test_valid_fields_are_kept_even_when_another_fails():
+    """Pokvaren JMBG ne sme da sakrije ispravno izračunat boravak."""
+    from eturista.models import Guest
+
+    guest = Guest(row=1, surname_raw="Marković", given_name_raw="Stefan",
+                  jmbg_raw="0703007100339", arrival_raw="07.10", days_raw="7")
+    assert not guest.validate(2026)
+    assert guest.jmbg_info is None
+    assert guest.stay is not None
+    assert guest.stay_display == "07.10.2026-14.10.2026"

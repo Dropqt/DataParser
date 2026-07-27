@@ -25,17 +25,19 @@ class Column:
 COLUMNS: tuple[Column, ...] = (
     Column("selected", "", 34),
     Column("row", "#", 44),
-    Column("given_name", "Ime", 140, editable=True),
-    Column("surname", "Prezime", 150, editable=True),
-    Column("jmbg", "JMBG", 130, editable=True),
-    Column("date", "Datum", 175, editable=True),
-    Column("status", "Status", 95),
-    Column("reason", "Razlog", 300),
-    Column("pdf", "Vaučer", 210),
+    Column("given_name", "Ime", 120, editable=True),
+    Column("surname", "Prezime", 135, editable=True),
+    Column("jmbg", "JMBG", 125, editable=True),
+    Column("arrival", "Dolazak", 95, editable=True),
+    Column("days", "Dana", 52, editable=True),
+    Column("stay", "Boravak", 170),
+    Column("status", "Status", 90),
+    Column("reason", "Razlog", 250),
+    Column("pdf", "Vaučer", 190),
 )
 
 COL_SELECTED = 0
-COL_STATUS = 6
+COL_STATUS = 8
 
 #: Poluprovidne podloge — čitljive i na beloj i na tamnoj pozadini.
 _ROW_COLORS: dict[Status, QColor | None] = {
@@ -107,7 +109,7 @@ class GuestTableModel(QAbstractTableModel):
         if role == Qt.ToolTipRole:
             return self._tooltip(guest)
 
-        if role == Qt.TextAlignmentRole and column.key in ("row", "status"):
+        if role == Qt.TextAlignmentRole and column.key in ("row", "days", "status"):
             return int(Qt.AlignCenter)
 
         return None
@@ -123,10 +125,14 @@ class GuestTableModel(QAbstractTableModel):
             return guest.given_name or guest.given_name_raw
         if key == "jmbg":
             return guest.jmbg
-        if key == "date":
+        if key == "arrival":
             # Pri izmeni prikazujemo original iz Excela da korisnik ne prepravlja
             # ono što je program već normalizovao.
-            return guest.date_raw if editing else guest.date_display
+            return guest.arrival_raw if editing else guest.arrival_display
+        if key == "days":
+            return guest.days_raw if editing else guest.days_display
+        if key == "stay":
+            return guest.stay_display
         if key == "status":
             return guest.status.label
         if key == "reason":
@@ -181,8 +187,10 @@ class GuestTableModel(QAbstractTableModel):
             guest.given_name_raw = text
         elif column.key == "jmbg":
             guest.jmbg_raw = text
-        elif column.key == "date":
-            guest.date_raw = text
+        elif column.key == "arrival":
+            guest.arrival_raw = text
+        elif column.key == "days":
+            guest.days_raw = text
         else:
             return False
 

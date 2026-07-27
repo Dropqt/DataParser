@@ -61,7 +61,7 @@ def make_batch(*rows) -> Batch:
     guests = []
     for index, (surname, given, jmbg, dates) in enumerate(rows, start=1):
         guest = Guest(row=index, surname_raw=surname, given_name_raw=given,
-                      jmbg_raw=jmbg, date_raw=dates)
+                      jmbg_raw=jmbg, arrival_raw=dates)
         guest.validate(YEAR)
         guests.append(guest)
     return Batch(guests=guests)

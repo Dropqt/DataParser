@@ -2,7 +2,7 @@
 
 Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 
-**Stanje:** faze 0–4 gotove · 113 testova prolazi · čeka se inspekcija portala
+**Stanje:** faze 0–4 gotove · 148 testova prolazi · čeka se inspekcija portala
 
 ---
 
@@ -19,10 +19,11 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] JMBG: tačno 13 cifara, provera datuma rođenja, izvedeni pol i oblast
 - [x] JMBG: popravka kad Excel pojede vodeću nulu (samo ako kontrolna cifra tad ispadne tačna)
 - [x] JMBG: naučna notacija iz Excela se odbija sa uputstvom
-- [x] Datumi: `05.10-10.10`, `5.10.2026 - 10.10.2026`, `05/10 do 10/10`, prelazak u novu godinu
+- [x] Datumi: **datum dolaska + broj dana** (prazno = 5 noćenja), prelazak u novu godinu
+- [x] Stari zapis sa opsegom (`05.10-10.10`) i dalje se prepoznaje, pa stare liste rade
 - [x] Ctrl+V iz Excela: TSV, prepoznavanje kolona iz zaglavlja ili po sadržaju
 - [x] Ctrl+C nazad: `STATUS` / `RAZLOG` / `PDF` kolone
-- [x] Redosled kolona `Ime · Prezime · JMBG · Datum · …` — isti u aplikaciji i u primeru,
+- [x] Redosled kolona `Ime · Prezime · JMBG · Dolazak · Dana · …` — isti u aplikaciji i u primeru,
       da se lepljenje nazad poklopi. Stari zapis `PREZIME Ime` se i dalje prepoznaje
       (prva kolona verzalom = prezime).
 - [x] SQLite: ture, gosti, greške, događaji, nastavak posle prekida
@@ -31,6 +32,8 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] Tabela sa bojenjem po statusu (zeleno / crveno / žuto / sivo)
 - [x] Dropdown sa 3 naloga iz `.env`
 - [x] Izmena ćelije odmah ponovo validira — red menja boju istog trena
+- [x] Sve greške u redu se prijavljuju odjednom, ne jedna po jedna
+- [x] Kolona `Boravak` računa raspon iz dolaska i broja dana
 - [x] Log panel, progress, statusna traka
 - [x] *Otvori raniju turu*, *Vrati greške u red*, kontekstni meni
 - [x] Selenium u zasebnoj niti — prozor se ne zamrzava, Zaustavi radi

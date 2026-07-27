@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 
 from .models import EXPORT_HEADERS, Guest
-from .validation import latinize
+from .validation import DEFAULT_DAYS, latinize
 
 # --- prepoznavanje zaglavlja ------------------------------------------------
 
@@ -19,7 +19,9 @@ _HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "surname": ("prezime", "prez", "surname", "lastname", "last_name"),
     "given_name": ("ime", "name", "firstname", "first_name", "given"),
     "jmbg": ("jmbg", "jmb", "maticni", "maticni_broj", "mb", "licni_broj"),
-    "date": ("datum", "datumi", "date", "boravak", "termin", "od_do", "period", "noci"),
+    "date": ("dolazak", "datum", "datum_dolaska", "datumi", "date", "od", "termin",
+             "boravak", "period", "od_do"),
+    "days": ("dana", "broj_dana", "dani", "noci", "nocenja", "broj_nocenja", "days", "nights"),
 }
 
 #: Kolone tipa "Ime i prezime" — jedna ćelija sa oba imena.
@@ -39,6 +41,7 @@ class ColumnMapping:
     given_name: int | None = None
     jmbg: int | None = None
     date: int | None = None
+    days: int | None = None
     full_name: int | None = None
     from_header: bool = False
 
@@ -59,7 +62,9 @@ class ColumnMapping:
         if self.jmbg is not None:
             parts.append(f"JMBG→{self.jmbg + 1}")
         if self.date is not None:
-            parts.append(f"datum→{self.date + 1}")
+            parts.append(f"dolazak→{self.date + 1}")
+        if self.days is not None:
+            parts.append(f"dana→{self.days + 1}")
         source = "iz zaglavlja" if self.from_header else "po sadržaju"
         return f"kolone ({source}): " + ", ".join(parts)
 
@@ -111,6 +116,12 @@ def _looks_like_date(cell: str) -> bool:
     return bool(_DATEISH.search(cell)) and not _looks_like_jmbg(cell)
 
 
+def _looks_like_days(cell: str) -> bool:
+    """Mali ceo broj — kandidat za kolonu sa brojem noćenja."""
+    text = cell.strip()
+    return text.isdigit() and 1 <= int(text) <= 120
+
+
 def _looks_like_text(cell: str) -> bool:
     return bool(_LETTER.search(cell))
 
@@ -144,18 +155,23 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
     width = max((len(row) for row in rows), default=0)
     jmbg_score = [0] * width
     date_score = [0] * width
+    days_score = [0] * width
     text_score = [0] * width
     upper_score = [0] * width
+    columns: list[list[str]] = [[] for _ in range(width)]
 
     for row in rows:
         for index in range(width):
             cell = row[index] if index < len(row) else ""
             if not cell:
                 continue
+            columns[index].append(cell)
             if _looks_like_jmbg(cell):
                 jmbg_score[index] += 1
             elif _looks_like_date(cell):
                 date_score[index] += 1
+            elif _looks_like_days(cell):
+                days_score[index] += 1
             elif _looks_like_text(cell):
                 text_score[index] += 1
                 if cell == cell.upper():
@@ -167,7 +183,17 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
     if width and max(date_score) > 0:
         mapping.date = date_score.index(max(date_score))
 
-    text_columns = [i for i in range(width) if text_score[i] > 0 and i not in (mapping.jmbg, mapping.date)]
+    # Kolona sa malim brojevima je broj noćenja — osim ako je to samo redni broj
+    # (1, 2, 3, …), što se lako pomeša ako se iz Excela kopira i kolona sa numeracijom.
+    day_candidates = [
+        i for i in range(width)
+        if days_score[i] > 0 and not _is_running_index(columns[i])
+    ]
+    if day_candidates:
+        mapping.days = max(day_candidates, key=lambda i: days_score[i])
+
+    taken = (mapping.jmbg, mapping.date, mapping.days)
+    text_columns = [i for i in range(width) if text_score[i] > 0 and i not in taken]
 
     if len(text_columns) == 1:
         mapping.full_name = text_columns[0]
@@ -181,6 +207,14 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
             mapping.surname, mapping.given_name = first, second
 
     return mapping
+
+
+def _is_running_index(values: list[str]) -> bool:
+    """Da li je kolona samo numeracija redova: 1, 2, 3, …"""
+    if len(values) < 3 or not all(value.strip().isdigit() for value in values):
+        return False
+    numbers = [int(value) for value in values]
+    return numbers == list(range(numbers[0], numbers[0] + len(numbers)))
 
 
 def _all_caps(upper_score: list[int], text_score: list[int], column: int) -> bool:
@@ -222,7 +256,7 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
         # Zaglavlje ume da pokrije samo deo kolona; ostalo dopuni po sadržaju.
         if rows and not mapping.is_usable:
             guessed = detect_by_content(rows)
-            for name in ("surname", "given_name", "jmbg", "date", "full_name"):
+            for name in ("surname", "given_name", "jmbg", "date", "days", "full_name"):
                 if getattr(mapping, name) is None:
                     setattr(mapping, name, getattr(guessed, name))
     else:
@@ -242,7 +276,13 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
         return result
 
     if mapping.date is None:
-        result.warnings.append("Kolona sa datumom nije nađena — datume ćeš morati da uneseš ručno.")
+        result.warnings.append(
+            "Kolona sa datumom dolaska nije nađena — datume ćeš morati da uneseš ručno."
+        )
+    if mapping.days is None:
+        result.warnings.append(
+            f"Kolona sa brojem dana nije nađena — svima je upisano {DEFAULT_DAYS} noćenja."
+        )
 
     def cell(row: list[str], index: int | None) -> str:
         return row[index] if index is not None and index < len(row) else ""
@@ -259,7 +299,8 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
             surname_raw=surname,
             given_name_raw=given_name,
             jmbg_raw=cell(row, mapping.jmbg),
-            date_raw=cell(row, mapping.date),
+            arrival_raw=cell(row, mapping.date),
+            days_raw=cell(row, mapping.days),
         )
         guest.validate(default_year)
         result.guests.append(guest)

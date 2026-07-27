@@ -24,8 +24,8 @@ def store(tmp_path):
 
 def make_batch() -> Batch:
     guests = [
-        Guest(row=1, surname_raw="Petrović", given_name_raw="Marko", jmbg_raw=A, date_raw="05.10-10.10"),
-        Guest(row=2, surname_raw="Ilić", given_name_raw="Jovan", jmbg_raw=B, date_raw="06.10-12.10"),
+        Guest(row=1, surname_raw="Petrović", given_name_raw="Marko", jmbg_raw=A, arrival_raw="05.10-10.10"),
+        Guest(row=2, surname_raw="Ilić", given_name_raw="Jovan", jmbg_raw=B, arrival_raw="06.10-12.10"),
     ]
     for guest in guests:
         guest.validate(YEAR)
@@ -96,7 +96,7 @@ def test_crash_mid_guest_is_requeued_with_warning(store):
 
 def test_invalid_data_stays_flagged_after_reload(store):
     bad = A[:12] + str((int(A[12]) + 1) % 10)
-    guest = Guest(row=1, surname_raw="Petrović", given_name_raw="Marko", jmbg_raw=bad, date_raw="05.10-10.10")
+    guest = Guest(row=1, surname_raw="Petrović", given_name_raw="Marko", jmbg_raw=bad, arrival_raw="05.10-10.10")
     guest.validate(YEAR)
     batch = Batch(guests=[guest], account_label="majka")
     batch_id = store.save_batch(batch)

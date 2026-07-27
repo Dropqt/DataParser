@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from .errors import ErrorKind, ValidationError
 
@@ -180,6 +180,9 @@ _RANGE_SEPARATORS = ("–", "—", " do ", " Do ", " DO ", ";", ",", "/", " - ",
 #: Duži boravak od ovoga je skoro sigurno greška u unosu, ne prava rezervacija.
 _MAX_NIGHTS = 120
 
+#: Koliko noćenja se podrazumeva kad kolona "Dana" ostane prazna.
+DEFAULT_DAYS = 5
+
 
 @dataclass(frozen=True)
 class Stay:
@@ -298,6 +301,90 @@ def parse_stay(raw: str, default_year: int | None = None) -> Stay:
         )
 
     return Stay(arrival=arrival, departure=departure, raw=text)
+
+
+def parse_arrival(raw: str, default_year: int | None = None) -> date:
+    """Pročitaj jedan datum dolaska: ``05.10``, ``5.10.2026``, ``05/10``…"""
+    text = (raw or "").strip()
+    if not text:
+        raise ValidationError(ErrorKind.MISSING_FIELD, "Datum dolaska nije unet")
+
+    arrival = _parse_one_date(text, default_year or date.today().year)
+    if arrival is None:
+        raise ValidationError(
+            ErrorKind.DATE_INVALID,
+            f"Ne mogu da pročitam datum dolaska iz {text!r} — očekujem npr. 05.10 ili 05.10.2026",
+        )
+    return arrival
+
+
+def parse_days(raw: str, default: int = DEFAULT_DAYS) -> int:
+    """Pročitaj broj noćenja. Prazno polje znači ``default``.
+
+    Prima i "5", i "5 dana", i "5 noćenja" — u tabeli se lako omakne da se dopiše reč.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return default
+
+    # Minus se traži posebno: `\d+` bi u "-3" uhvatio 3 i tiho pretvorio grešku u boravak.
+    digits = re.search(r"-?\d+", text)
+    if not digits:
+        raise ValidationError(
+            ErrorKind.DATE_INVALID,
+            f"Broj dana nije broj: {text!r}",
+        )
+
+    days = int(digits.group())
+    if days <= 0:
+        raise ValidationError(ErrorKind.DATE_INVALID, "Broj dana mora biti bar 1")
+    if days > _MAX_NIGHTS:
+        raise ValidationError(
+            ErrorKind.DATE_INVALID,
+            f"Boravak od {days} noćenja deluje kao greška u unosu",
+        )
+    return days
+
+
+def stay_from_days(arrival: date, days: int, raw: str = "") -> Stay:
+    """Napravi raspon boravka od datuma dolaska i broja noćenja.
+
+    Pet dana znači pet noćenja: 05.10 → 10.10, isto kao stari zapis ``05.10-10.10``.
+    """
+    return Stay(arrival=arrival, departure=arrival + timedelta(days=days), raw=raw)
+
+
+def resolve_stay(
+    date_raw: str,
+    days_raw: str = "",
+    default_year: int | None = None,
+    default_days: int = DEFAULT_DAYS,
+) -> Stay:
+    """Odredi boravak iz kolona *Dolazak* i *Dana*.
+
+    Ako u koloni sa datumom ipak stoji stari zapis sa opsegom (``05.10-10.10``), koristi
+    se on — tako stare liste iz prve ture rade bez prepravke, a kolona *Dana* se ignoriše.
+    """
+    text = (date_raw or "").strip()
+    if not text:
+        raise ValidationError(ErrorKind.MISSING_FIELD, "Datum dolaska nije unet")
+
+    if _looks_like_range(text, default_year):
+        return parse_stay(text, default_year)
+
+    arrival = parse_arrival(text, default_year)
+    return stay_from_days(arrival, parse_days(days_raw, default_days), raw=text)
+
+
+def _looks_like_range(text: str, default_year: int | None) -> bool:
+    """Da li tekst sadrži dva datuma, a ne jedan."""
+    if _parse_one_date(text, default_year or date.today().year) is not None:
+        return False
+    year = default_year or date.today().year
+    return any(
+        _parse_one_date(left, year) is not None and _parse_one_date(right, year) is not None
+        for left, right in _split_candidates(text)
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 from .errors import ErrorKind, GuestError, ValidationError
-from .validation import JmbgInfo, Stay, clean_name, latinize, parse_stay, validate_jmbg, validate_name
+from .validation import JmbgInfo, Stay, latinize, resolve_stay, validate_jmbg, validate_name
 
 
 class Status(str, Enum):
@@ -39,9 +39,9 @@ _STATUS_LABELS: dict[Status, str] = {
 }
 
 #: Zaglavlje koje ide u clipboard pri Ctrl+C, i redosled kolona u tabeli.
-#: Mora da se poklapa sa kolonama A-G u primer/primer_gosti.xlsx, da bi se rezultat ture
+#: Mora da se poklapa sa kolonama A-H u primer/primer_gosti.xlsx, da bi se rezultat ture
 #: lepio nazad preko gostiju bez pomeranja kolona.
-EXPORT_HEADERS = ("Ime", "Prezime", "JMBG", "Datum", "STATUS", "RAZLOG", "PDF")
+EXPORT_HEADERS = ("Ime", "Prezime", "JMBG", "Dolazak", "Dana", "STATUS", "RAZLOG", "PDF")
 
 
 @dataclass
@@ -54,7 +54,10 @@ class Guest:
     surname_raw: str = ""
     given_name_raw: str = ""
     jmbg_raw: str = ""
-    date_raw: str = ""
+    #: Datum dolaska kako je unet. Prihvata se i stari zapis sa opsegom (05.10-10.10).
+    arrival_raw: str = ""
+    #: Broj noćenja kako je unet. Prazno znači DEFAULT_DAYS.
+    days_raw: str = ""
 
     # popunjava validate()
     surname: str = ""
@@ -83,9 +86,19 @@ class Guest:
         return f"{self.surname or self.surname_raw} {self.given_name or self.given_name_raw}".strip()
 
     @property
-    def date_display(self) -> str:
-        """Nedvosmislen datum ako je parsiran, inače original iz Excela."""
-        return self.stay.format() if self.stay else self.date_raw.strip()
+    def arrival_display(self) -> str:
+        """Datum dolaska u nedvosmislenom obliku, inače original iz Excela."""
+        return f"{self.stay.arrival:%d.%m.%Y}" if self.stay else self.arrival_raw.strip()
+
+    @property
+    def days_display(self) -> str:
+        """Broj noćenja. Popunjen i kad je u Excelu ostao prazan (podrazumevana vrednost)."""
+        return str(self.stay.nights) if self.stay else self.days_raw.strip()
+
+    @property
+    def stay_display(self) -> str:
+        """Ceo raspon boravka — samo za prikaz u tabeli, ne ide u Excel."""
+        return self.stay.format() if self.stay else ""
 
     @property
     def pdf_display(self) -> str:
@@ -115,13 +128,26 @@ class Guest:
         self.stay = None
         self.note = ""
 
-        try:
-            self.surname = validate_name(self.surname_raw, "Prezime")
-            self.given_name = validate_name(self.given_name_raw, "Ime")
-            self.jmbg_info = validate_jmbg(self.jmbg_raw)
-            self.stay = parse_stay(self.date_raw, default_year)
-        except ValidationError as exc:
-            self.mark_error(exc.as_guest_error())
+        # Svako polje se proverava zasebno, pa se sve greške vide odjednom. Da se stalo
+        # na prvoj, korisnik bi popravio JMBG i tek onda otkrio da je i datum loš.
+        problems: list[ValidationError] = []
+
+        for setter, check in (
+            ("surname", lambda: validate_name(self.surname_raw, "Prezime")),
+            ("given_name", lambda: validate_name(self.given_name_raw, "Ime")),
+            ("jmbg_info", lambda: validate_jmbg(self.jmbg_raw)),
+            ("stay", lambda: resolve_stay(self.arrival_raw, self.days_raw, default_year)),
+        ):
+            try:
+                setattr(self, setter, check())
+            except ValidationError as exc:
+                problems.append(exc)
+
+        if problems:
+            self.mark_error(GuestError(
+                kind=problems[0].kind,
+                message=" · ".join(problem.message for problem in problems),
+            ))
             return False
 
         if self.jmbg_info.note:
@@ -181,7 +207,8 @@ class Guest:
             self.given_name or self.given_name_raw,
             self.surname or self.surname_raw,
             self.jmbg,
-            self.date_display,
+            self.arrival_display,
+            self.days_display,
             self.status.label,
             self.reason,
             self.pdf_display,

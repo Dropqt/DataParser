@@ -72,22 +72,46 @@ def make_model() -> GuestTableModel:
         [("Petrović", "Marko", A), ("Ilić", "Jovan", B)], start=1
     ):
         guest = Guest(row=index, surname_raw=surname, given_name_raw=given,
-                      jmbg_raw=jmbg, date_raw="05.10-10.10")
+                      jmbg_raw=jmbg, arrival_raw="05.10")
         guest.validate(YEAR)
         guests.append(guest)
     return GuestTableModel(guests, year=YEAR)
 
 
-def test_model_shows_normalized_date(qt_app):
+def test_model_shows_normalized_arrival(qt_app):
     model = make_model()
-    value = model.data(model.index(0, COL["date"]), Qt.DisplayRole)
-    assert value == "05.10.2026-10.10.2026"
+    assert model.data(model.index(0, COL["arrival"]), Qt.DisplayRole) == "05.10.2026"
 
 
-def test_model_shows_raw_date_while_editing(qt_app):
+def test_model_shows_raw_arrival_while_editing(qt_app):
     model = make_model()
-    value = model.data(model.index(0, COL["date"]), Qt.EditRole)
-    assert value == "05.10-10.10"
+    assert model.data(model.index(0, COL["arrival"]), Qt.EditRole) == "05.10"
+
+
+def test_model_fills_in_default_days(qt_app):
+    """Prazna kolona Dana se u tabeli vidi kao 5, ali original ostaje prazan."""
+    model = make_model()
+    assert model.data(model.index(0, COL["days"]), Qt.DisplayRole) == "5"
+    assert model.data(model.index(0, COL["days"]), Qt.EditRole) == ""
+
+
+def test_model_shows_computed_stay(qt_app):
+    model = make_model()
+    assert model.data(model.index(0, COL["stay"]), Qt.DisplayRole) == "05.10.2026-10.10.2026"
+
+
+def test_editing_days_recomputes_stay(qt_app):
+    model = make_model()
+    assert model.setData(model.index(0, COL["days"]), "7", Qt.EditRole)
+    assert model.guests[0].stay.nights == 7
+    assert model.data(model.index(0, COL["stay"]), Qt.DisplayRole) == "05.10.2026-12.10.2026"
+
+
+def test_editing_days_to_nonsense_marks_row_red(qt_app):
+    model = make_model()
+    assert model.setData(model.index(0, COL["days"]), "0", Qt.EditRole)
+    assert model.guests[0].status is Status.ERROR
+    assert "bar 1" in model.guests[0].error.text
 
 
 def test_row_color_follows_status(qt_app):
@@ -155,9 +179,9 @@ def test_tooltip_reports_error_and_screenshot(qt_app):
 
 def test_paste_from_excel_fills_table(window):
     set_clipboard(
-        "Prezime\tIme\tJMBG\tDatum\n"
-        f"Petrović\tMarko\t{A}\t05.10-10.10\n"
-        f"Ilić\tJovan\t{B}\t06.10-12.10\n"
+        "Ime\tPrezime\tJMBG\tDolazak\n"
+        f"Marko\tPetrović\t{A}\t05.10\n"
+        f"Jovan\tIlić\t{B}\t06.10\n"
     )
     window._paste()
 
@@ -167,9 +191,9 @@ def test_paste_from_excel_fills_table(window):
 
 
 def test_paste_appends_instead_of_replacing(window):
-    set_clipboard(f"Petrović\tMarko\t{A}\t05.10-10.10\n")
+    set_clipboard(f"Marko\tPetrović\t{A}\t05.10\n")
     window._paste()
-    set_clipboard(f"Ilić\tJovan\t{B}\t06.10-12.10\n")
+    set_clipboard(f"Jovan\tIlić\t{B}\t06.10\n")
     window._paste()
 
     assert len(window.model.guests) == 2
@@ -177,7 +201,7 @@ def test_paste_appends_instead_of_replacing(window):
 
 
 def test_bad_jmbg_is_red_right_after_paste(window):
-    set_clipboard(f"Petrović\tMarko\t{BAD}\t05.10-10.10\n")
+    set_clipboard(f"Marko\tPetrović\t{BAD}\t05.10\n")
     window._paste()
 
     guest = window.model.guests[0]
@@ -187,17 +211,17 @@ def test_bad_jmbg_is_red_right_after_paste(window):
 
 
 def test_copy_produces_excel_row_with_status(window):
-    set_clipboard(f"Petrović\tMarko\t{A}\t05.10-10.10\n")
+    set_clipboard(f"Marko\tPetrović\t{A}\t05.10\n")
     window._paste()
     window.model.guests[0].mark_ok("2026_PETROVIC_MARKO.pdf")
 
     window._copy()
     header, row = QGuiApplication.clipboard().text().split("\n")
 
-    assert header.split("\t")[4:] == ["STATUS", "RAZLOG", "PDF"]
+    assert header.split("\t")[5:] == ["STATUS", "RAZLOG", "PDF"]
     cells = row.split("\t")
-    assert cells[4] == "OK"
-    assert cells[6] == "2026_PETROVIC_MARKO.pdf"
+    assert cells[5] == "OK"
+    assert cells[7] == "2026_PETROVIC_MARKO.pdf"
 
 
 def test_update_check_is_skipped_when_disabled(window):
@@ -238,8 +262,8 @@ def test_accounts_are_loaded_into_dropdown(window):
 
 def test_status_bar_counts_update(window):
     set_clipboard(
-        f"Petrović\tMarko\t{A}\t05.10-10.10\n"
-        f"Ilić\tJovan\t{BAD}\t06.10-12.10\n"
+        f"Marko\tPetrović\t{A}\t05.10\n"
+        f"Jovan\tIlić\t{BAD}\t06.10\n"
     )
     window._paste()
     text = window.status_label.text()
@@ -251,8 +275,8 @@ def test_retry_failed_resets_only_technical_errors(window):
     from eturista.errors import ErrorKind, GuestError
 
     set_clipboard(
-        f"Petrović\tMarko\t{A}\t05.10-10.10\n"
-        f"Ilić\tJovan\t{BAD}\t06.10-12.10\n"
+        f"Marko\tPetrović\t{A}\t05.10\n"
+        f"Jovan\tIlić\t{BAD}\t06.10\n"
     )
     window._paste()
     window.model.guests[0].mark_error(GuestError(ErrorKind.TIMEOUT, "Isteklo vreme"))
@@ -265,7 +289,7 @@ def test_retry_failed_resets_only_technical_errors(window):
 
 
 def test_select_all_toggles_every_row(window):
-    set_clipboard(f"Petrović\tMarko\t{A}\t05.10-10.10\nIlić\tJovan\t{B}\t06.10-12.10\n")
+    set_clipboard(f"Marko\tPetrović\t{A}\t05.10\nIlić\tJovan\t{B}\t06.10\n")
     window._paste()
 
     window._select_all(False)

@@ -34,7 +34,7 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 
 ## Kako se radi tura
 
-1. U glavnom Excelu označi grupu gostiju (**ime, prezime, JMBG, datum**) i `Ctrl+C`.
+1. U glavnom Excelu označi grupu gostiju (**ime, prezime, JMBG, dolazak, dana**) i `Ctrl+C`.
 2. U aplikaciji `Ctrl+V`. Redovi se pojave u tabeli; kolone se prepoznaju same — iz
    zaglavlja ako ga ima, inače po sadržaju.
 3. **Crveni redovi imaju neispravan podatak** i vide se odmah, pre nego što browser
@@ -43,10 +43,19 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 5. Zeleno = prijavljen, crveno = pao, žuto = u toku. Prelaz mišem preko reda pokazuje razlog.
 6. Kad se završi, `Ctrl+C` i zalepi nazad u glavni Excel.
 
+### Datum boravka
+
+Umesto opsega `05.10-10.10` unosi se **datum dolaska** i **broj dana**. Prazna kolona `Dana`
+znači 5 noćenja — koliko traje minimalni vaučer. `5 dana` znači 5 noćenja, dakle dolazak
+05.10 → odlazak 10.10, isto kao stari zapis.
+
+Stari opseg i dalje radi: ako u koloni sa datumom nađe `05.10-10.10`, aplikacija ga pročita
+kao i pre, a kolonu `Dana` tad ignoriše. Stare liste iz prve ture ne treba prepravljati.
+
 ### Bojenje u glavnom Excelu
 
-Redosled kolona (`Ime · Prezime · JMBG · Datum · STATUS · RAZLOG · PDF`) je isti kao u
-`primer/primer_gosti.xlsx`, pa se rezultat lepi preko istih gostiju bez pomeranja ičega.
+Redosled kolona (`Ime · Prezime · JMBG · Dolazak · Dana · STATUS · RAZLOG · PDF`) je isti
+kao u `primer/primer_gosti.xlsx`, pa se rezultat lepi preko istih gostiju bez pomeranja ičega.
 
 Kopirani redovi nose kolone `STATUS`, `RAZLOG` i `PDF`. Clipboard ne prenosi boje, pa se
 bojenje u glavnom Excelu podešava jednom preko *conditional formatting* nad `STATUS` kolonom:
@@ -68,7 +77,8 @@ ide se na sledećeg gosta.
 |---|---|---|
 | `Pogrešna kontrolna cifra…` | tipfeler u JMBG-u, uhvaćen lokalno | ispravi ćeliju |
 | `Portal je odbio JMBG` | JMBG je matematički ispravan ali ga portal ne nalazi | proveri podatak kod gosta |
-| `Datum nije ispravan` | datum se ne može pročitati ili je besmislen | ispravi ćeliju |
+| `Ne mogu da pročitam datum dolaska…` | datum se ne može pročitati | ispravi ćeliju |
+| `Broj dana mora biti bar 1` | besmislen broj noćenja | ispravi ćeliju |
 | `Element nije nađen — portal je verovatno promenjen` | portal je izmenjen | `run.py --proveri-selektore`, pa popravi `selectors.py` |
 | `Portal nije odgovorio na vreme` | prolazna smetnja | *Uređivanje → Vrati greške u red*, pa ponovo |
 | `Sesija je istekla` | portal je izbacio nalog | rešava se sam (ponovna prijava) |
@@ -112,7 +122,7 @@ eturista/
     voucher_page.py
   gui/                      PySide6 prozor, tabela sa bojama, radne niti
 fake_portal/app.py          lokalni lažni portal za razvoj i testove
-tests/                      113 testova
+tests/                      148 testova
 legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
 ```
 
