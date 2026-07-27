@@ -1,0 +1,46 @@
+# === TAJNE — nikad ne sme u git ===
+.env
+.env.local
+*.env
+!.env.example
+logins.txt
+accounts.json
+
+# === Podaci gostiju — licni podaci, ne idu u repo ===
+*.xlsx
+*.xls
+*.csv
+# ...osim praznog primera sa izmisljenim gostima
+!primer/primer_gosti.xlsx
+podaci/
+pdf/
+vauceri/
+*.db
+*.db-journal
+*.sqlite3
+
+# === Dijagnostika ===
+screenshots/
+logovi/
+*.log
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.spec
+
+# === Editor / OS ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

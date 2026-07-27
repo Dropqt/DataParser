@@ -1,0 +1,244 @@
+"""Testovi tabele i prozora — bez ekrana (offscreen) i bez browsera."""
+
+from __future__ import annotations
+
+import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QApplication
+
+from eturista.config import Config
+from eturista.gui.main_window import MainWindow
+from eturista.gui.table_model import COL_SELECTED, COLUMNS, GuestTableModel
+from eturista.models import Guest, Status
+
+from .conftest import make_jmbg
+
+YEAR = 2026
+A = make_jmbg("010199071012")
+B = make_jmbg("150398871001")
+BAD = A[:12] + str((int(A[12]) + 1) % 10)
+
+COL = {column.key: index for index, column in enumerate(COLUMNS)}
+
+
+@pytest.fixture(scope="session")
+def qt_app():
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
+@pytest.fixture
+def config(tmp_path):
+    cfg = Config(
+        portal_url="http://127.0.0.1:1",
+        pdf_dir=tmp_path / "vauceri",
+        screenshot_dir=tmp_path / "screenshots",
+        db_path=tmp_path / "eturista.db",
+        year=YEAR,
+        headless=True,
+    )
+    cfg.ensure_dirs()
+    return cfg
+
+
+@pytest.fixture
+def window(qt_app, config, monkeypatch):
+    # Podešeni nalozi -> nema dijaloga pri pokretanju koji bi blokirao test.
+    monkeypatch.setenv("ETURISTA_NALOG1_NAZIV", "mileta")
+    monkeypatch.setenv("ETURISTA_NALOG1_USER", "test")
+    monkeypatch.setenv("ETURISTA_NALOG1_PASS", "test123")
+    monkeypatch.setenv("ETURISTA_NALOG2_NAZIV", "majka")
+    monkeypatch.setenv("ETURISTA_NALOG2_USER", "test2")
+    monkeypatch.setenv("ETURISTA_NALOG2_PASS", "test234")
+
+    win = MainWindow(config)
+    yield win
+    win.store.close()
+    win.deleteLater()
+
+
+def set_clipboard(text: str) -> None:
+    QGuiApplication.clipboard().setText(text)
+
+
+# --- model ------------------------------------------------------------------
+
+def make_model() -> GuestTableModel:
+    guests = []
+    for index, (surname, given, jmbg) in enumerate(
+        [("Petrović", "Marko", A), ("Ilić", "Jovan", B)], start=1
+    ):
+        guest = Guest(row=index, surname_raw=surname, given_name_raw=given,
+                      jmbg_raw=jmbg, date_raw="05.10-10.10")
+        guest.validate(YEAR)
+        guests.append(guest)
+    return GuestTableModel(guests, year=YEAR)
+
+
+def test_model_shows_normalized_date(qt_app):
+    model = make_model()
+    value = model.data(model.index(0, COL["date"]), Qt.DisplayRole)
+    assert value == "05.10.2026-10.10.2026"
+
+
+def test_model_shows_raw_date_while_editing(qt_app):
+    model = make_model()
+    value = model.data(model.index(0, COL["date"]), Qt.EditRole)
+    assert value == "05.10-10.10"
+
+
+def test_row_color_follows_status(qt_app):
+    model = make_model()
+    pending = model.data(model.index(0, 1), Qt.BackgroundRole)
+    assert pending is None
+
+    model.guests[0].mark_ok()
+    green = model.data(model.index(0, 1), Qt.BackgroundRole)
+    assert green is not None and green.green() > green.red()
+
+    model.guests[1].mark_error(model.guests[1].error or _error())
+    red = model.data(model.index(1, 1), Qt.BackgroundRole)
+    assert red is not None and red.red() > red.green()
+
+
+def _error():
+    from eturista.errors import ErrorKind, GuestError
+    return GuestError(ErrorKind.TIMEOUT, "Isteklo vreme")
+
+
+def test_editing_jmbg_revalidates_immediately(qt_app):
+    model = make_model()
+    index = model.index(0, COL["jmbg"])
+
+    assert model.setData(index, BAD, Qt.EditRole)
+    assert model.guests[0].status is Status.ERROR
+    assert "kontrolna cifra" in model.guests[0].error.text
+
+    # ispravka vraća red u normalu bez ponovnog lepljenja
+    assert model.setData(index, A, Qt.EditRole)
+    assert model.guests[0].status is Status.PENDING
+    assert model.guests[0].error is None
+
+
+def test_checkbox_toggles_selection(qt_app):
+    model = make_model()
+    index = model.index(0, COL_SELECTED)
+    assert model.data(index, Qt.CheckStateRole) == Qt.Checked
+
+    model.setData(index, Qt.Unchecked.value, Qt.CheckStateRole)
+    assert model.guests[0].selected is False
+
+
+def test_removing_rows_renumbers(qt_app):
+    model = make_model()
+    model.remove_rows([0])
+    assert [g.row for g in model.guests] == [1]
+    assert model.guests[0].surname == "Ilić"
+
+
+def test_tooltip_reports_error_and_screenshot(qt_app):
+    from eturista.errors import ErrorKind, GuestError
+
+    model = make_model()
+    model.guests[0].mark_error(
+        GuestError(ErrorKind.JMBG_REJECTED_PORTAL, "Portal je odbio JMBG", screenshot="/tmp/a.png")
+    )
+    tip = model.data(model.index(0, 1), Qt.ToolTipRole)
+    assert "Portal je odbio JMBG" in tip
+    assert "/tmp/a.png" in tip
+
+
+# --- prozor -----------------------------------------------------------------
+
+def test_paste_from_excel_fills_table(window):
+    set_clipboard(
+        "Prezime\tIme\tJMBG\tDatum\n"
+        f"Petrović\tMarko\t{A}\t05.10-10.10\n"
+        f"Ilić\tJovan\t{B}\t06.10-12.10\n"
+    )
+    window._paste()
+
+    assert len(window.model.guests) == 2
+    assert window.batch.guests is window.model.guests   # tabela i tura dele istu listu
+    assert window.model.guests[0].surname == "Petrović"
+
+
+def test_paste_appends_instead_of_replacing(window):
+    set_clipboard(f"Petrović\tMarko\t{A}\t05.10-10.10\n")
+    window._paste()
+    set_clipboard(f"Ilić\tJovan\t{B}\t06.10-12.10\n")
+    window._paste()
+
+    assert len(window.model.guests) == 2
+    assert [g.row for g in window.model.guests] == [1, 2]
+
+
+def test_bad_jmbg_is_red_right_after_paste(window):
+    set_clipboard(f"Petrović\tMarko\t{BAD}\t05.10-10.10\n")
+    window._paste()
+
+    guest = window.model.guests[0]
+    assert guest.status is Status.ERROR
+    color = window.model.data(window.model.index(0, 1), Qt.BackgroundRole)
+    assert color.red() > color.green()
+
+
+def test_copy_produces_excel_row_with_status(window):
+    set_clipboard(f"Petrović\tMarko\t{A}\t05.10-10.10\n")
+    window._paste()
+    window.model.guests[0].mark_ok("2026_PETROVIC_MARKO.pdf")
+
+    window._copy()
+    header, row = QGuiApplication.clipboard().text().split("\n")
+
+    assert header.split("\t")[4:] == ["STATUS", "RAZLOG", "PDF"]
+    cells = row.split("\t")
+    assert cells[4] == "OK"
+    assert cells[6] == "2026_PETROVIC_MARKO.pdf"
+
+
+def test_accounts_are_loaded_into_dropdown(window):
+    assert [window.account_box.itemText(i) for i in range(window.account_box.count())] == [
+        "mileta", "majka"
+    ]
+
+
+def test_status_bar_counts_update(window):
+    set_clipboard(
+        f"Petrović\tMarko\t{A}\t05.10-10.10\n"
+        f"Ilić\tJovan\t{BAD}\t06.10-12.10\n"
+    )
+    window._paste()
+    text = window.status_label.text()
+    assert "Gostiju: 2" in text
+    assert "grešaka 1" in text
+
+
+def test_retry_failed_resets_only_technical_errors(window):
+    from eturista.errors import ErrorKind, GuestError
+
+    set_clipboard(
+        f"Petrović\tMarko\t{A}\t05.10-10.10\n"
+        f"Ilić\tJovan\t{BAD}\t06.10-12.10\n"
+    )
+    window._paste()
+    window.model.guests[0].mark_error(GuestError(ErrorKind.TIMEOUT, "Isteklo vreme"))
+
+    window._retry_failed()
+
+    # tehnička greška se vraća u red, pogrešan JMBG ostaje crven dok se ne ispravi
+    assert window.model.guests[0].status is Status.PENDING
+    assert window.model.guests[1].status is Status.ERROR
+
+
+def test_select_all_toggles_every_row(window):
+    set_clipboard(f"Petrović\tMarko\t{A}\t05.10-10.10\nIlić\tJovan\t{B}\t06.10-12.10\n")
+    window._paste()
+
+    window._select_all(False)
+    assert not any(g.selected for g in window.model.guests)
+    assert window.batch.pending() == []
+
+    window._select_all(True)
+    assert len(window.batch.pending()) == 2

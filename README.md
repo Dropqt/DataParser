@@ -1,0 +1,124 @@
+# eTurista — prijava gostiju
+
+Desktop aplikacija za prijavu gostiju na `portal.eturista.gov.rs`. Gosti se kopiraju iz
+glavnog Excela u tabelu aplikacije, prijave se preko izabranog naloga, i vrate se nazad
+u Excel sa `STATUS` kolonom.
+
+Zamenjuje `legacy/data_loop.py` iz prve ture.
+
+---
+
+## Postavljanje
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env      # pa popuni korisnička imena i lozinke
+```
+
+Treba i **Chrome ili Chromium** na sistemu. Chromedriver se skida automatski pri prvom
+pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
+
+> `.env` drži lozinke i nalazi se u `.gitignore`. Repo je javan, pa aplikacija pri
+> pokretanju proveri da `.env` nije slučajno ušao u git i upozori ako jeste.
+
+## Pokretanje
+
+```bash
+.venv/bin/python run.py                      # aplikacija
+.venv/bin/python run.py --proveri-selektore  # provera da li selektori važe na portalu
+.venv/bin/python run.py --lazni-portal       # lokalni lažni portal za probu
+```
+
+---
+
+## Kako se radi tura
+
+1. U glavnom Excelu označi grupu gostiju (**prezime, ime, JMBG, datum**) i `Ctrl+C`.
+2. U aplikaciji `Ctrl+V`. Redovi se pojave u tabeli; kolone se prepoznaju same — iz
+   zaglavlja ako ga ima, inače po sadržaju.
+3. **Crveni redovi imaju neispravan podatak** i vide se odmah, pre nego što browser
+   uopšte krene. Dvoklik na ćeliju ispravlja; boja se menja istog trena.
+4. Izaberi nalog iz padajućeg menija i klikni **Pokreni turu**.
+5. Zeleno = prijavljen, crveno = pao, žuto = u toku. Prelaz mišem preko reda pokazuje razlog.
+6. Kad se završi, `Ctrl+C` i zalepi nazad u glavni Excel.
+
+### Bojenje u glavnom Excelu
+
+Kopirani redovi nose kolone `STATUS`, `RAZLOG` i `PDF`. Clipboard ne prenosi boje, pa se
+bojenje u glavnom Excelu podešava jednom preko *conditional formatting* nad `STATUS` kolonom:
+
+| Uslov | Boja |
+|---|---|
+| `STATUS = "OK"` | zelena |
+| `STATUS = "GREŠKA"` | crvena |
+| `STATUS = "PRESKOČEN"` | siva |
+
+---
+
+## Šta se dešava kad nešto pukne
+
+Greška **nikad ne prekida turu** — gost pocrveni, snimi se screenshot, forma se osveži i
+ide se na sledećeg gosta.
+
+| Razlog u tabeli | Šta znači | Šta uraditi |
+|---|---|---|
+| `Pogrešna kontrolna cifra…` | tipfeler u JMBG-u, uhvaćen lokalno | ispravi ćeliju |
+| `Portal je odbio JMBG` | JMBG je matematički ispravan ali ga portal ne nalazi | proveri podatak kod gosta |
+| `Datum nije ispravan` | datum se ne može pročitati ili je besmislen | ispravi ćeliju |
+| `Element nije nađen — portal je verovatno promenjen` | portal je izmenjen | `run.py --proveri-selektore`, pa popravi `selectors.py` |
+| `Portal nije odgovorio na vreme` | prolazna smetnja | *Uređivanje → Vrati greške u red*, pa ponovo |
+| `Sesija je istekla` | portal je izbacio nalog | rešava se sam (ponovna prijava) |
+
+Napredak se snima u bazu posle **svakog** gosta. Ako program pukne nasred ture od 30
+gostiju, *Datoteka → Otvori raniju turu* nastavlja od prvog neobrađenog — bez duplikata.
+Gost koji je bio u obradi kad je program pukao dobija napomenu da se ručno proveri.
+
+---
+
+## Struktura
+
+```
+run.py                      ulazna tačka (GUI / provera selektora / lažni portal)
+eturista/
+  validation.py             JMBG (kontrolna cifra) i datumi boravka
+  clipboard.py              Ctrl+V iz Excela, Ctrl+C nazad
+  models.py                 Guest, Batch, Status
+  store.py                  SQLite: ture, gosti, greške, nastavak posle prekida
+  driver.py                 Chrome + preuzimanje fajlova
+  runner.py                 orkestracija ture
+  portal/
+    selectors.py            ★ SVI selektori portala su ovde i nigde drugde
+    base_page.py            WebDriverWait helperi (nema time.sleep)
+    login_page.py
+    reservation_page.py
+    voucher_page.py
+  gui/                      PySide6 prozor, tabela sa bojama, radne niti
+fake_portal/app.py          lokalni lažni portal za razvoj i testove
+tests/                      86 testova
+legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
+```
+
+### Kad portal izmeni sajt
+
+Menja se **samo `eturista/portal/selectors.py`**. Nigde drugde u kodu nema CSS ni XPath
+stringa. Svaki selektor ima opis na srpskom, listu rezervnih selektora i stanje:
+
+- `potvrđen` — provereno na živom portalu
+- `pretpostavka` — radilo u prvoj turi ili je logična pretpostavka
+- `zaključan` — deo portala koji još nije otvoren
+
+`run.py --proveri-selektore` se prijavi na portal i ispiše koji selektori razrešavaju
+element a koji ne.
+
+---
+
+## Testovi
+
+```bash
+.venv/bin/python -m pytest              # sve (pokreće pravi Chrome, ~2 min)
+.venv/bin/python -m pytest -m "not browser"   # samo brzi, bez browsera
+```
+
+End-to-end testovi voze pravi Chrome kroz lažni portal iz `fake_portal/`, koji ume da
+simulira odbijen JMBG, spor odgovor i istek sesije.
