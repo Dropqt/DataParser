@@ -34,7 +34,7 @@ from ..runner import RunOptions
 from ..store import Store
 from .guest_table import GuestTable, open_in_system
 from .table_model import GuestTableModel
-from .worker import RunWorker, SelectorCheckWorker
+from .worker import RunWorker, SelectorCheckWorker, UpdateCheckWorker
 
 _LEVEL_COLORS = {"ERROR": "#d1242f", "WARN": "#bf8700", "INFO": ""}
 
@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self.model = GuestTableModel(self.batch.guests, year=config.year)
         self.worker: RunWorker | None = None
         self.check_worker: SelectorCheckWorker | None = None
+        self.update_worker: UpdateCheckWorker | None = None
 
         self.setWindowTitle("eTurista — prijava gostiju")
         self.resize(1180, 760)
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
         self._load_accounts()
         self._startup_checks()
         self._update_status()
+        self._check_for_update(quiet=True)
 
     # ------------------------------------------------------------------ UI
 
@@ -147,6 +149,11 @@ class MainWindow(QMainWindow):
 
         help_menu = self.menuBar().addMenu("&Pomoć")
         help_menu.addAction(self._action("Kako se koristi", self._show_help))
+        # Lambda namerno: QAction.triggered šalje `checked` kao prvi argument, što bi
+        # se poklopilo sa `quiet` i pravilo zabunu.
+        help_menu.addAction(
+            self._action("Proveri ima li nove verzije", lambda: self._check_for_update(quiet=False))
+        )
 
     def _action(self, text: str, slot, shortcut=None) -> QAction:
         action = QAction(text, self)
@@ -422,6 +429,52 @@ class MainWindow(QMainWindow):
         box.setDetailedText("\n".join(lines))
         box.exec()
 
+    def _check_for_update(self, quiet: bool = False) -> None:
+        """Pitaj GitHub ima li novijih izmena na main grani.
+
+        ``quiet`` se koristi pri pokretanju: ćuti ako je sve u redu ili ako nema mreže,
+        i javi se samo kad stvarno ima nove verzije.
+        """
+        from ..update import is_enabled
+
+        if quiet and not is_enabled():
+            return
+        if self.update_worker is not None and self.update_worker.isRunning():
+            return
+
+        self._quiet_update_check = quiet
+        self.update_worker = UpdateCheckWorker(self)
+        self.update_worker.done.connect(self._on_update_checked)
+        self.update_worker.start()
+
+    def _on_update_checked(self, info) -> None:
+        from ..update import update_hint
+
+        quiet = getattr(self, "_quiet_update_check", True)
+
+        if info is None:
+            self._log("Provera nove verzije nije uspela (nema mreže ili GitHub ne odgovara).", "WARN")
+            if not quiet:
+                QMessageBox.information(
+                    self, "Provera verzije",
+                    "Ne mogu da proverim — nema veze sa GitHub-om.",
+                )
+            return
+
+        if not info.available:
+            self._log("Program je ažuran.")
+            if not quiet:
+                QMessageBox.information(self, "Provera verzije", "Program je ažuran.")
+            return
+
+        self._log(info.describe().replace("\n", " · "), "WARN")
+        self._log(update_hint(), "WARN")
+
+        box = QMessageBox(QMessageBox.Information, "Nova verzija", info.describe(), parent=self)
+        box.setInformativeText(update_hint())
+        box.setDetailedText(f"Lokalno:  {info.local}\nNa GitHub-u: {info.remote}\n\n{info.compare_url}")
+        box.exec()
+
     def _show_help(self) -> None:
         QMessageBox.information(
             self,
@@ -466,6 +519,8 @@ class MainWindow(QMainWindow):
                 return
             self.worker.stop()
             self.worker.wait(15000)
+        if self.update_worker is not None and self.update_worker.isRunning():
+            self.update_worker.wait(2000)
         self.store.close()
         event.accept()
 

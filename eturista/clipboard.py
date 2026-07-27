@@ -52,10 +52,10 @@ class ColumnMapping:
         if self.full_name is not None:
             parts.append(f"ime+prezime→{self.full_name + 1}")
         else:
-            if self.surname is not None:
-                parts.append(f"prezime→{self.surname + 1}")
             if self.given_name is not None:
                 parts.append(f"ime→{self.given_name + 1}")
+            if self.surname is not None:
+                parts.append(f"prezime→{self.surname + 1}")
         if self.jmbg is not None:
             parts.append(f"JMBG→{self.jmbg + 1}")
         if self.date is not None:
@@ -173,25 +173,33 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
         mapping.full_name = text_columns[0]
     elif len(text_columns) >= 2:
         first, second = text_columns[0], text_columns[1]
-        # U starom formatu prezime je pisano velikim slovima ("PETROVIĆ Marko"),
-        # pa ako je samo jedna kolona VERZAL ona je skoro sigurno prezime.
-        first_all_caps = upper_score[first] == text_score[first]
-        second_all_caps = upper_score[second] == text_score[second]
-        if second_all_caps and not first_all_caps:
-            mapping.surname, mapping.given_name = second, first
-        else:
+        # Podrazumevani redosled je ime pa prezime — isti kao u primer_gosti.xlsx.
+        mapping.given_name, mapping.surname = first, second
+        # Ali stare liste su prezime pisale verzalom ("PETROVIĆ Marko"); ako je baš
+        # prva kolona VERZAL a druga nije, redosled je obrnut.
+        if _all_caps(upper_score, text_score, first) and not _all_caps(upper_score, text_score, second):
             mapping.surname, mapping.given_name = first, second
 
     return mapping
 
 
+def _all_caps(upper_score: list[int], text_score: list[int], column: int) -> bool:
+    return text_score[column] > 0 and upper_score[column] == text_score[column]
+
+
 def _split_full_name(cell: str) -> tuple[str, str]:
-    """"Petrović Marko" → ("Petrović", "Marko"). Prvi token je prezime, kao u staroj listi."""
+    """Razdvoji "Marko Petrović" na (ime, prezime).
+
+    Podrazumeva se ime pa prezime. Izuzetak je stari zapis gde je prezime verzalom
+    ("PETROVIĆ Marko") — tu je prva reč prezime.
+    """
     parts = cell.split()
     if not parts:
         return "", ""
     if len(parts) == 1:
         return parts[0], ""
+    if parts[0] == parts[0].upper() and parts[-1] != parts[-1].upper():
+        return " ".join(parts[1:]), parts[0]
     return parts[0], " ".join(parts[1:])
 
 
@@ -241,7 +249,7 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
 
     for row in rows:
         if mapping.full_name is not None:
-            surname, given_name = _split_full_name(cell(row, mapping.full_name))
+            given_name, surname = _split_full_name(cell(row, mapping.full_name))
         else:
             surname = cell(row, mapping.surname)
             given_name = cell(row, mapping.given_name)
@@ -258,7 +266,7 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
 
     if mapping.full_name is not None:
         result.warnings.append(
-            "Ime i prezime su bili u istoj koloni — prvo reč je uzeta kao prezime. "
+            "Ime i prezime su bili u istoj koloni — prva reč je uzeta kao ime. "
             "Proveri redove pre pokretanja."
         )
 

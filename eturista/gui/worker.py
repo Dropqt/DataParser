@@ -90,3 +90,21 @@ class SelectorCheckWorker(QThread):
         except Exception as exc:
             self.message.emit(f"Provera nije uspela: {exc}", "ERROR")
             self.done.emit(None)
+
+
+class UpdateCheckWorker(QThread):
+    """Provera da li na GitHub-u ima novija verzija.
+
+    Ide u zasebnu nit da mreža ne bi odlagala pojavljivanje prozora. Ako nema interneta
+    ili GitHub ne odgovori, tiho se odustaje — provera nikad ne sme da smeta radu.
+    """
+
+    done = Signal(object)  # UpdateInfo ili None
+
+    def run(self) -> None:
+        from ..update import check_for_update
+
+        try:
+            self.done.emit(check_for_update())
+        except Exception:
+            self.done.emit(None)

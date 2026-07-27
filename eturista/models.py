@@ -39,7 +39,9 @@ _STATUS_LABELS: dict[Status, str] = {
 }
 
 #: Zaglavlje koje ide u clipboard pri Ctrl+C, i redosled kolona u tabeli.
-EXPORT_HEADERS = ("Prezime", "Ime", "JMBG", "Datum", "STATUS", "RAZLOG", "PDF")
+#: Mora da se poklapa sa kolonama A-G u primer/primer_gosti.xlsx, da bi se rezultat ture
+#: lepio nazad preko gostiju bez pomeranja kolona.
+EXPORT_HEADERS = ("Ime", "Prezime", "JMBG", "Datum", "STATUS", "RAZLOG", "PDF")
 
 
 @dataclass
@@ -176,8 +178,8 @@ class Guest:
     def export_row(self) -> tuple[str, ...]:
         """Red za Ctrl+C nazad u glavni Excel, redosledom EXPORT_HEADERS."""
         return (
-            self.surname or self.surname_raw,
             self.given_name or self.given_name_raw,
+            self.surname or self.surname_raw,
             self.jmbg,
             self.date_display,
             self.status.label,

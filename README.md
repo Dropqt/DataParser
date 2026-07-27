@@ -34,7 +34,7 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 
 ## Kako se radi tura
 
-1. U glavnom Excelu označi grupu gostiju (**prezime, ime, JMBG, datum**) i `Ctrl+C`.
+1. U glavnom Excelu označi grupu gostiju (**ime, prezime, JMBG, datum**) i `Ctrl+C`.
 2. U aplikaciji `Ctrl+V`. Redovi se pojave u tabeli; kolone se prepoznaju same — iz
    zaglavlja ako ga ima, inače po sadržaju.
 3. **Crveni redovi imaju neispravan podatak** i vide se odmah, pre nego što browser
@@ -44,6 +44,9 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 6. Kad se završi, `Ctrl+C` i zalepi nazad u glavni Excel.
 
 ### Bojenje u glavnom Excelu
+
+Redosled kolona (`Ime · Prezime · JMBG · Datum · STATUS · RAZLOG · PDF`) je isti kao u
+`primer/primer_gosti.xlsx`, pa se rezultat lepi preko istih gostiju bez pomeranja ičega.
 
 Kopirani redovi nose kolone `STATUS`, `RAZLOG` i `PDF`. Clipboard ne prenosi boje, pa se
 bojenje u glavnom Excelu podešava jednom preko *conditional formatting* nad `STATUS` kolonom:
@@ -70,6 +73,20 @@ ide se na sledećeg gosta.
 | `Portal nije odgovorio na vreme` | prolazna smetnja | *Uređivanje → Vrati greške u red*, pa ponovo |
 | `Sesija je istekla` | portal je izbacio nalog | rešava se sam (ponovna prijava) |
 
+### Provera nove verzije
+
+Pri pokretanju aplikacija tiho pita GitHub ima li novijih izmena na `main` grani i javi se
+samo ako ih ima. Repo je javan, pa nije potreban token; šalje se običan zahtev i ništa o
+tebi ni o gostima se ne prenosi. Ako nema mreže, ćuti i nastavlja normalno.
+
+Poredi se tvoj lokalni commit sa `main`, pa dobijaš i tačan broj commit-a zaostatka — i
+nema lažne uzbune kad si lokalno ispred. Ručno: *Pomoć → Proveri ima li nove verzije*.
+Isključivanje: `ETURISTA_PROVERA_AZURIRANJA=false` u `.env`.
+
+Ovo **samo javlja** — ne instalira ništa. Ažuriranje je `git pull` pa ponovo pokreni.
+
+---
+
 Napredak se snima u bazu posle **svakog** gosta. Ako program pukne nasred ture od 30
 gostiju, *Datoteka → Otvori raniju turu* nastavlja od prvog neobrađenog — bez duplikata.
 Gost koji je bio u obradi kad je program pukao dobija napomenu da se ručno proveri.
@@ -95,7 +112,7 @@ eturista/
     voucher_page.py
   gui/                      PySide6 prozor, tabela sa bojama, radne niti
 fake_portal/app.py          lokalni lažni portal za razvoj i testove
-tests/                      86 testova
+tests/                      113 testova
 legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
 ```
 

@@ -46,28 +46,43 @@ def test_paste_with_shuffled_header_columns():
 
 
 def test_paste_without_header_detects_by_content():
-    text = f"Petrović\tMarko\t{A}\t05.10-10.10\nIlić\tJovan\t{B}\t06.10-12.10\n"
+    """Bez zaglavlja se podrazumeva ime pa prezime — kao u primer_gosti.xlsx."""
+    text = f"Marko\tPetrović\t{A}\t05.10-10.10\nJovan\tIlić\t{B}\t06.10-12.10\n"
     result = parse_clipboard(text, YEAR)
     assert not result.mapping.from_header
     assert result.mapping.jmbg == 2
     assert result.mapping.date == 3
-    assert result.guests[1].given_name == "Jovan"
+    assert (result.guests[1].given_name, result.guests[1].surname) == ("Jovan", "Ilić")
 
 
-def test_all_caps_column_is_treated_as_surname():
-    """Stari format je pisao prezime verzalom: 'Ime PREZIME'."""
-    text = f"Marko\tPETROVIĆ\t{A}\t05.10-10.10\nJovan\tILIĆ\t{B}\t06.10-12.10\n"
+def test_all_caps_first_column_is_treated_as_surname():
+    """Stara lista je pisala prezime verzalom i stavljala ga prvo: 'PREZIME Ime'."""
+    text = f"PETROVIĆ\tMarko\t{A}\t05.10-10.10\nILIĆ\tJovan\t{B}\t06.10-12.10\n"
     result = parse_clipboard(text, YEAR)
     assert result.guests[0].surname == "PETROVIĆ"
     assert result.guests[0].given_name == "Marko"
 
 
+def test_all_caps_second_column_keeps_default_order():
+    text = f"Marko\tPETROVIĆ\t{A}\t05.10-10.10\nJovan\tILIĆ\t{B}\t06.10-12.10\n"
+    result = parse_clipboard(text, YEAR)
+    assert result.guests[0].given_name == "Marko"
+    assert result.guests[0].surname == "PETROVIĆ"
+
+
 def test_single_name_column_is_split():
-    text = f"Ime i prezime\tJMBG\tDatum\nPetrović Marko\t{A}\t05.10-10.10\n"
+    text = f"Ime i prezime\tJMBG\tDatum\nMarko Petrović\t{A}\t05.10-10.10\n"
     result = parse_clipboard(text, YEAR)
     guest = result.guests[0]
-    assert (guest.surname, guest.given_name) == ("Petrović", "Marko")
+    assert (guest.given_name, guest.surname) == ("Marko", "Petrović")
     assert any("istoj koloni" in w for w in result.warnings)
+
+
+def test_single_name_column_with_caps_surname_first():
+    text = f"Gost\tJMBG\tDatum\nPETROVIĆ Marko\t{A}\t05.10-10.10\n"
+    result = parse_clipboard(text, YEAR)
+    guest = result.guests[0]
+    assert (guest.given_name, guest.surname) == ("Marko", "PETROVIĆ")
 
 
 def test_invalid_jmbg_row_is_kept_but_marked():
@@ -115,9 +130,10 @@ def test_export_round_trip_has_status_columns():
 
     out = to_clipboard(guests)
     header, row = out.split("\n")
-    assert header.split("\t") == ["Prezime", "Ime", "JMBG", "Datum", "STATUS", "RAZLOG", "PDF"]
+    assert header.split("\t") == ["Ime", "Prezime", "JMBG", "Datum", "STATUS", "RAZLOG", "PDF"]
     cells = row.split("\t")
-    assert cells[0] == "Petrović"
+    assert cells[0] == "Marko"
+    assert cells[1] == "Petrović"
     assert cells[2] == A
     assert cells[3] == "05.10.2026-10.10.2026"
     assert cells[4] == "OK"

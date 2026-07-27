@@ -28,7 +28,7 @@ def test_broken_jmbg_really_is_broken():
 
 @pytest.mark.parametrize("row", SAMPLE[:5])
 def test_first_five_samples_are_valid(row):
-    _, given_name, id_number, _ = row
+    given_name, _, id_number, _ = row
     info = validate_jmbg(id_number)
     expected_female = given_name in {"Ana", "Milica", "Jelena"}
     assert info.is_female is expected_female, (
@@ -43,6 +43,15 @@ def test_sixth_sample_demonstrates_wrong_check_digit():
         validate_jmbg(id_number)
     assert exc.value.kind is ErrorKind.JMBG_INVALID_LOCAL
     assert "kontrolna cifra" in exc.value.message
+
+
+def test_samples_are_ime_then_prezime():
+    """Redosled u primeru mora da prati EXPORT_HEADERS, inače se lepljenje ne poklapa."""
+    from eturista.models import EXPORT_HEADERS
+
+    assert EXPORT_HEADERS[:2] == ("Ime", "Prezime")
+    given_names = {row[0] for row in SAMPLE}
+    assert given_names == {"Marko", "Ana", "Jovan", "Nikola", "Milica", "Stefan", "Jelena"}
 
 
 def test_seventh_sample_demonstrates_excel_eating_leading_zero():

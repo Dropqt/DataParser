@@ -2,7 +2,7 @@
 
 Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 
-**Stanje:** faze 0–4 gotove · 95 testova prolazi · čeka se inspekcija portala
+**Stanje:** faze 0–4 gotove · 113 testova prolazi · čeka se inspekcija portala
 
 ---
 
@@ -22,6 +22,9 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] Datumi: `05.10-10.10`, `5.10.2026 - 10.10.2026`, `05/10 do 10/10`, prelazak u novu godinu
 - [x] Ctrl+V iz Excela: TSV, prepoznavanje kolona iz zaglavlja ili po sadržaju
 - [x] Ctrl+C nazad: `STATUS` / `RAZLOG` / `PDF` kolone
+- [x] Redosled kolona `Ime · Prezime · JMBG · Datum · …` — isti u aplikaciji i u primeru,
+      da se lepljenje nazad poklopi. Stari zapis `PREZIME Ime` se i dalje prepoznaje
+      (prva kolona verzalom = prezime).
 - [x] SQLite: ture, gosti, greške, događaji, nastavak posle prekida
 
 ### Faza 2 — GUI (PySide6)
@@ -31,6 +34,8 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] Log panel, progress, statusna traka
 - [x] *Otvori raniju turu*, *Vrati greške u red*, kontekstni meni
 - [x] Selenium u zasebnoj niti — prozor se ne zamrzava, Zaustavi radi
+- [x] Provera nove verzije na GitHub-u pri pokretanju (tiho, u zasebnoj niti;
+      poredi lokalni commit sa `main`, javlja se samo kad stvarno ima novije)
 
 ### Faza 3 — automatizacija
 - [x] Lažni portal (`fake_portal/`) — simulira odbijen JMBG, spor odgovor, istek sesije
@@ -47,7 +52,8 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] Preimenovanje u `2026_PETROVIC_MARKO.pdf` (ASCII, radi i na Windows-u)
 
 ### Alati
-- [x] `primer/primer_gosti.xlsx` — Excel sa gotovom JMBG proverom (kolona H)
+- [x] `primer/primer_gosti.xlsx` — Excel sa gotovom JMBG proverom (kolona H),
+      kolone A-G istim redom kao izlaz iz aplikacije
 - [x] `alati/napravi_primer_excel.py` — regeneriše taj fajl
 - [x] Test koji čuva da se Excel provera i provera u aplikaciji ne raziđu
 
@@ -75,6 +81,8 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 ### Faza 7 — pakovanje i paralelni režim
 - [ ] PyInstaller: Linux binary
 - [ ] PyInstaller: Windows `.exe` (build mora na Windows mašini)
+- [ ] Pri pakovanju upisati `revision.txt` pored .exe — bez toga spakovana aplikacija ne
+      zna na kom je commit-u, pa provera nove verzije ćuti
 - [ ] Dugme "Paralelno: 2 / 3" — `runner.py` je već pisan tako da to ne traži prepravku
 - [ ] Proveriti da li portal uopšte trpi 3 istovremene sesije
 

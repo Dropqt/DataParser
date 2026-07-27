@@ -25,8 +25,8 @@ class Column:
 COLUMNS: tuple[Column, ...] = (
     Column("selected", "", 34),
     Column("row", "#", 44),
-    Column("surname", "Prezime", 150, editable=True),
     Column("given_name", "Ime", 140, editable=True),
+    Column("surname", "Prezime", 150, editable=True),
     Column("jmbg", "JMBG", 130, editable=True),
     Column("date", "Datum", 175, editable=True),
     Column("status", "Status", 95),

@@ -44,6 +44,8 @@ def config(tmp_path):
 
 @pytest.fixture
 def window(qt_app, config, monkeypatch):
+    # Bez ovoga bi svaki GUI test išao na mrežu da pita GitHub za novu verziju.
+    monkeypatch.setenv("ETURISTA_PROVERA_AZURIRANJA", "false")
     # Podešeni nalozi -> nema dijaloga pri pokretanju koji bi blokirao test.
     monkeypatch.setenv("ETURISTA_NALOG1_NAZIV", "mileta")
     monkeypatch.setenv("ETURISTA_NALOG1_USER", "test")
@@ -196,6 +198,36 @@ def test_copy_produces_excel_row_with_status(window):
     cells = row.split("\t")
     assert cells[4] == "OK"
     assert cells[6] == "2026_PETROVIC_MARKO.pdf"
+
+
+def test_update_check_is_skipped_when_disabled(window):
+    """Isključena provera ne sme da pokrene nit ni da dodirne mrežu."""
+    assert window.update_worker is None
+
+
+def test_update_check_starts_when_enabled(qt_app, config, monkeypatch):
+    monkeypatch.setenv("ETURISTA_NALOG1_NAZIV", "mileta")
+    monkeypatch.setenv("ETURISTA_NALOG1_USER", "test")
+    monkeypatch.setenv("ETURISTA_NALOG1_PASS", "test123")
+    monkeypatch.setenv("ETURISTA_PROVERA_AZURIRANJA", "true")
+
+    started = []
+    from eturista.gui import main_window as module
+    monkeypatch.setattr(
+        module, "UpdateCheckWorker",
+        lambda parent=None: type("_Fake", (), {
+            "done": type("_Sig", (), {"connect": lambda self, slot: None})(),
+            "start": lambda self: started.append(True),
+            "isRunning": lambda self: False,
+        })(),
+    )
+
+    win = MainWindow(config)
+    try:
+        assert started == [True]
+    finally:
+        win.store.close()
+        win.deleteLater()
 
 
 def test_accounts_are_loaded_into_dropdown(window):
