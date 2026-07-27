@@ -88,8 +88,11 @@ def test_happy_path_registers_everyone(unlocked_selectors, portal, config, accou
     # portal je stvarno primio podatke, ne samo da je klik prošao
     assert len(state.saved) == 2
     assert state.saved[0]["jmbg"] == A
-    assert state.saved[0]["datumOd"] == "05.10.2026"
-    assert state.saved[0]["datumDo"] == "10.10.2026"
+    # Bez vodeće nule — tako portal sam upisuje datum izabran iz kalendara.
+    assert state.saved[0]["datumSmestajaOd"] == "5.10.2026"
+    assert state.saved[0]["datumSmestajaDo"] == "10.10.2026"
+    # i prijava ugostitelja je čekirana na drugom koraku
+    assert state.saved[0]["prijava"] == "1"
 
 
 def test_vouchers_are_downloaded_and_renamed(unlocked_selectors, portal, config, account):
@@ -250,6 +253,25 @@ def test_locked_voucher_still_counts_guest_as_registered(portal, config, account
     assert "nije podešen" in batch.guests[0].error.text
 
 
+def test_locked_reservation_stops_the_whole_run(unlocked_selectors, portal, config, account):
+    """Zaključana rezervacija prekida turu, ne meli 30 puta istu grešku.
+
+    Van sezone portal drži čekboks za izbor prijave ugostitelja onemogućenim. To ne
+    zavisi od gosta, pa nema smisla da drugi gost uopšte krene.
+    """
+    running, state = portal
+    state.reservations_locked = True
+
+    batch = make_batch(*DEFAULT_ROWS)
+    result = Runner(config, account, batch, options=RunOptions(max_attempts=1)).run()
+
+    assert batch.guests[0].error.kind is ErrorKind.RESERVATION_LOCKED
+    assert "nije otvorio rezervacije" in result.fatal
+    # drugi gost nije ni pokušan
+    assert batch.guests[1].status is Status.PENDING
+    assert state.saved == []
+
+
 def test_selectors_resolve_against_mock_portal(unlocked_selectors, portal, config, account):
     """Ako neko promeni selektor a zaboravi lažni portal, ovo puca."""
     from eturista.runner import verify_selectors
@@ -257,11 +279,8 @@ def test_selectors_resolve_against_mock_portal(unlocked_selectors, portal, confi
     checks = verify_selectors(config, account)
     missing = [c.locator.name for c in checks if not c.found and not c.locator.optional]
 
-    # Očekivano da fale:
-    #  - CONFIRMATION i VOUCHER_DOWNLOAD postoje tek posle čuvanja rezervacije,
-    #    a provera staje na praznoj formi;
-    #  - LOGGED_IN_MARKER još nije potvrđen na živom portalu;
-    #  - NEXT_BUTTON se koristi samo ako forma ima više koraka — lažni portal je
-    #    jednostrani, a kakav je pravi znaćemo tek pri inspekciji (faza 5).
-    assert set(missing) <= {"LOGGED_IN_MARKER", "CONFIRMATION", "VOUCHER_DOWNLOAD", "NEXT_BUTTON"}
+    # Očekivano da fali samo CONFIRMATION: potvrda postoji tek posle čuvanja
+    # rezervacije, a provera staje na praznoj formi. Sve ostalo je potvrđeno na
+    # živom portalu 27.07.2026. i mora da se nađe i ovde.
+    assert set(missing) <= {"CONFIRMATION"}
     assert not [c for c in checks if c.locator.name == "GUEST_JMBG" and not c.found]

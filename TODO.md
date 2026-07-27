@@ -2,7 +2,7 @@
 
 Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 
-**Stanje:** faze 0–4 gotove · 148 testova prolazi · čeka se inspekcija portala
+**Stanje:** faze 0–5 gotove · portal pregledan 27.07.2026 · čeka se dan otvaranja registracije
 
 ---
 
@@ -62,24 +62,46 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 
 ---
 
+### Faza 5 — pravi selektori
+- [x] Claude ekstenzija za Chrome, dozvola za `portal.eturista.gov.rs`
+- [x] Prijava na nalog i obilazak forme rezervacije
+- [x] Uhvaćeni selektori — `run.py --proveri-selektore` javlja **14 od 15**
+- [x] Odgovorena otvorena pitanja (dole), sem potpisa i paralelnih sesija
+- [x] Stanja u `selectors.py` prebačena na `potvrđen`
+- [x] Lažni portal prepravljen da glumi pravu formu (3 koraka, izbor prijave, opseg datuma)
+
+**Šta se ispostavilo drugačije nego što je kod pretpostavljao:**
+
+| Pretpostavka | Kako zaista jeste |
+|---|---|
+| dva polja `datumOd` / `datumDo` | jedan `mat-date-range-input`, `datumSmestajaOd` / `datumSmestajaDo` |
+| datum `15.07.2026` | `15.7.2026` — **bez vodeće nule** |
+| dugme „Dalje“ sa tekstom | okrugla ikonica bez ijednog slova (`button.mat-stepper-next`) |
+| forma je jedna strana | stepper sa 3 koraka, srednji je izbor prijave ugostitelja |
+| dugme „Preuzmi vaučer“ | „Odštampaj rezervaciju“, i onemogućeno dok se ne sačuva |
+| tekst na portalu je latinica | javna strana je **ćirilica**, aplikacija iza prijave latinica |
+
+---
+
 ## ⏳ Sledeće
 
-### Faza 5 — pravi selektori  ← **ovde smo**
-- [ ] Instalirati Claude ekstenziju za Chrome i dati dozvolu za `portal.eturista.gov.rs`
-- [ ] Ulogovati se na jedan nalog (forma je iza prijave)
-- [ ] Uhvatiti selektore za ono što je sad otvoreno (~80%)
-- [ ] Odgovoriti na otvorena pitanja (dole)
-- [ ] Prebaciti stanja u `selectors.py` sa `pretpostavka` na `potvrđen`
-- [ ] Smoke test: 1 gost, vidljiv browser
-
-**Trenutno zaključano (6):** datum dolaska, datum odlaska, dugme za čuvanje, potvrda o
-čuvanju, dugme za vaučer, znak da je nalog prijavljen.
-
-### Faza 6 — dan otvaranja registracije
+### Faza 6 — dan otvaranja registracije  ← **ovde smo**
 - [ ] `run.py --proveri-selektore` kao prva stvar
-- [ ] Popuniti zaključane selektore
-- [ ] Proba: 2–3 gosta pod nadzorom
+- [ ] Potvrditi `CONFIRMATION` — jedini selektor koji se ne vidi bez sačuvane rezervacije
+- [ ] Proba: 1 gost pod nadzorom, vidljiv browser
+- [ ] Proba: 2–3 gosta
 - [ ] Prva prava tura
+
+**Zaključano je samo jedno, i to na portalu a ne u kodu:** čekboks za izbor prijave
+ugostitelja na 2. koraku. Onemogućen je i na prelazak mišem javi *„Rezervacija smeštaja
+je zaključana.“* Aplikacija to sad prepoznaje i prekine turu sa porukom **„Portal još
+nije otvorio rezervacije“** umesto da meli istu grešku kroz sve goste.
+
+### Imenovanje preuzetih vaučera
+- [ ] Promeniti naziv PDF-a u **godina · ime · prezime**: `2026_MARKO_PETROVIC.pdf`
+      (sad je obrnuto — `2026_PETROVIC_MARKO.pdf`). Menja se `Guest.pdf_name`
+      u `eturista/models.py`, plus test koji proverava nazive.
+      Ostaje kako jeste: čist ASCII i verzal, zbog Windows-a.
 
 ### Faza 7 — pakovanje i paralelni režim
 - [ ] PyInstaller: Linux binary
@@ -125,19 +147,36 @@ i jedan primer gotovog vaučera da se vidi gde ima mesta.
 
 ---
 
-## ❓ Otvorena pitanja za inspekciju portala (faza 5)
+## ✅ Odgovori sa portala (27.07.2026)
 
-Ovo ne mogu da odgovorim iz koda — vidi se tek na živom portalu:
+1. **Koliko koraka ima forma rezervacije?** Tri, `mat-horizontal-stepper`:
+   1. *Podaci o potencijalnom korisniku vaučera* — ime, prezime, JMBG
+   2. *Podaci o prijavi ugostitelja za šemu* — tabela objekata, bira se čekboksom
+   3. *Ostali podaci o rezervaciji* — datumi
+   Kroz korake se ide okruglim dugmetom sa ikonicom; **nema nikakav tekst**, pa se traži
+   po klasi `mat-stepper-next`.
+2. **Kako se unosi datum?** `mat-date-range-input` sa dva polja koja **primaju kucanje**
+   (nisu `readonly`), pa kalendar ne mora da se otvara. Format je `d.M.yyyy` —
+   `15.7.2026`, bez vodeće nule. Utvrđeno tako što je datum izabran iz portalovog
+   kalendara pa pročitano šta je portal sam upisao.
+3. **Gde nastaje PDF vaučer?** Dugme *„Odštampaj rezervaciju“* (ikonica `cloud_download`)
+   stoji odmah pored *Sačuvaj*, ispod stepper-a. **Onemogućeno je dok se rezervacija ne
+   sačuva** — to je ujedno i najpouzdaniji znak da je čuvanje prošlo.
+4. **Ima li polje za potpis izdavaoca?** — *još neprovereno*, nije se stiglo do
+   podešavanja naloga. Ostaje otvoreno, vidi diskusiju gore.
+5. **Šta je tačno zaključano?** Samo čekboks za izbor prijave na 2. koraku
+   (*„Rezervacija smeštaja je zaključana.“*). Sva polja, datumi i dugme *Sačuvaj* su
+   otvoreni i sad.
+6. **Trpi li portal 3 istovremene sesije?** — *još neprovereno*, ne može bez prave ture.
 
-1. **Koliko koraka ima forma rezervacije?** Jedna strana ili wizard sa "Dalje"?
-   (Stara skripta je klikala neko "next" dugme, pa verovatno ima više koraka.)
-2. **Kako se unosi datum?** Obično polje u koje se kuca, ili datepicker koji mora da se
-   otvori i klikne? Koji format očekuje — `05.10.2026` ili nešto drugo?
-3. **Gde nastaje PDF vaučer?** Dugme odmah posle čuvanja rezervacije, ili posebna lista
-   izdatih vaučera?
-4. **Ima li polje za potpis izdavaoca?** (vidi gore)
-5. **Šta je tačno zaključano** do otvaranja registracije?
-6. **Trpi li portal 3 istovremene sesije?** Bitno za fazu 7.
+> Sitnica koja bi umela da izgriza sate: portal drži i **prazne** `<mat-error>` čvorove
+> ispod polja bez greške. Provera greške zato traži samo `mat-error` sa tekstom, inače bi
+> pročitala prazan string i zaključila da greške nema.
+
+> **Pismo nije isto svuda.** U običnom Chrome-u aplikacija portala se prikazala
+> latinicom, a u Chrome-u koji vozi Selenium (čist profil) — ćirilicom. Zato nijedan
+> selektor ne sme da traži tekst u jednom pismu: radilo bi ručno, a padalo u turi.
+> Ovo je provereno 28.07.2026. probnim pogonom, screenshot u `screenshots/`.
 
 ---
 

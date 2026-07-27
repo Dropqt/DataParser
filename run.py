@@ -26,6 +26,19 @@ def _run_gui() -> int:
     return app.exec()
 
 
+#: Koliko selektora staje u red izveštaja. XPath koji hvata tekst u oba pisma je dugačak
+#: nekoliko stotina znakova, pa bi bez skraćivanja pojeo ceo ekran — a ono što se iz
+#: izveštaja čita je da li je selektor našao element, ne kako tačno glasi.
+_SIRINA_SELEKTORA = 60
+
+
+def _skrati(selektor: str | None) -> str:
+    tekst = " ".join((selektor or "").split())
+    if len(tekst) <= _SIRINA_SELEKTORA:
+        return tekst
+    return tekst[: _SIRINA_SELEKTORA - 1] + "…"
+
+
 def _check_selectors(account_label: str | None) -> int:
     from eturista.accounts import find_account, load_accounts
     from eturista.config import Config
@@ -50,7 +63,7 @@ def _check_selectors(account_label: str | None) -> int:
     checks = verify_selectors(config, account)
     for check in sorted(checks, key=lambda c: (c.found, c.locator.name)):
         mark = "✓" if check.found else "✗"
-        extra = f"  [{check.matched_by}]" if check.found else ""
+        extra = f"  [{_skrati(check.matched_by)}]" if check.found else ""
         print(f"{mark} {check.locator.state.value:14} {check.locator.name:20} {check.locator.description}{extra}")
 
     missing = [c for c in checks if not c.found and not c.locator.optional]

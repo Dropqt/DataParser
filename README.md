@@ -77,6 +77,7 @@ ide se na sledećeg gosta.
 |---|---|---|
 | `Pogrešna kontrolna cifra…` | tipfeler u JMBG-u, uhvaćen lokalno | ispravi ćeliju |
 | `Portal je odbio JMBG` | JMBG je matematički ispravan ali ga portal ne nalazi | proveri podatak kod gosta |
+| `Portal još nije otvorio rezervacije` | registracija za vaučere nije počela | sačekaj dan otvaranja; tura se prekida odmah |
 | `Ne mogu da pročitam datum dolaska…` | datum se ne može pročitati | ispravi ćeliju |
 | `Broj dana mora biti bar 1` | besmislen broj noćenja | ispravi ćeliju |
 | `Element nije nađen — portal je verovatno promenjen` | portal je izmenjen | `run.py --proveri-selektore`, pa popravi `selectors.py` |
@@ -122,9 +123,21 @@ eturista/
     voucher_page.py
   gui/                      PySide6 prozor, tabela sa bojama, radne niti
 fake_portal/app.py          lokalni lažni portal za razvoj i testove
-tests/                      148 testova
+tests/                      149 testova
 legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
 ```
+
+### Kako izgleda forma na portalu
+
+Rezervacija je wizard sa tri koraka (provereno 27.07.2026):
+
+1. **Podaci o korisniku vaučera** — ime, prezime, JMBG
+2. **Prijava ugostitelja za šemu** — tabela objekata; bira se čekboks u redu.
+   Van sezone je taj čekboks zaključan i to je jedino što nas deli od prve ture
+3. **Ostali podaci** — datum dolaska i odlaska, pa *Sačuvaj* i *Odštampaj rezervaciju*
+
+Dve stvari koje deluju kao sitnica a lome tok: dugme za sledeći korak nema **nikakav
+tekst** (samo ikonicu), a datum se piše **bez vodeće nule** — `5.10.2026`, ne `05.10.2026`.
 
 ### Kad portal izmeni sajt
 
@@ -134,6 +147,9 @@ stringa. Svaki selektor ima opis na srpskom, listu rezervnih selektora i stanje:
 - `potvrđen` — provereno na živom portalu
 - `pretpostavka` — radilo u prvoj turi ili je logična pretpostavka
 - `zaključan` — deo portala koji još nije otvoren
+
+Tekst se traži preko `tekst_sadrzi()`, koje ne gleda ni pismo ni kvačice ni veličinu
+slova — javna strana portala je ćirilična, a aplikacija iza prijave latinična.
 
 `run.py --proveri-selektore` se prijavi na portal i ispiše koji selektori razrešavaju
 element a koji ne.

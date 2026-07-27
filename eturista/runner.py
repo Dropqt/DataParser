@@ -153,6 +153,15 @@ class Runner:
                         result.errors.append((guest, guest.error))
 
                 self.reporter.progress(index, len(guests))
+
+                # Zaključana rezervacija nije do gosta — sledećih 29 bi palo isto tako.
+                if guest.error and guest.error.kind is ErrorKind.RESERVATION_LOCKED:
+                    result.fatal = guest.error.text
+                    self.reporter.message(
+                        "Portal još nije otvorio rezervacije — prekidam turu.", "ERROR"
+                    )
+                    self._log_db(guest.error.text, "ERROR")
+                    break
         finally:
             self._close_browser()
 

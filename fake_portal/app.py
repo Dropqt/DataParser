@@ -17,6 +17,7 @@ Pokretanje ručno:  ``python -m fake_portal.app``
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -25,6 +26,11 @@ from urllib.parse import parse_qs, urlparse
 
 RESERVATION_PATH = "/vauceri/rezervacija-smestaja"
 
+#: Oblik u kom pravi portal sam upisuje datum kad se izabere iz kalendara: ``15.7.2026``.
+#: Namerno **ne** prima vodeću nulu — da bi test pao ako se u kodu vrati ``strftime``
+#: sa ``%d.%m.%Y``, koje daje ``15.07.2026``.
+_DATUM = re.compile(r"[1-9]\d?\.[1-9]\d?\.\d{4}")
+
 _STYLE = """
 body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
 label { display: block; margin: 12px 0 4px; font-weight: 600; }
@@ -32,6 +38,28 @@ input { width: 100%; padding: 8px; font-size: 15px; box-sizing: border-box; }
 button { margin-top: 16px; padding: 10px 18px; font-size: 15px; cursor: pointer; }
 mat-error { display: block; color: #c62828; margin-top: 4px; font-size: 13px; }
 .ok { color: #2e7d32; font-weight: 600; }
+mat-toolbar { display: flex; gap: 16px; background: #b71c1c; color: #fff; padding: 8px 12px; }
+mat-step-header { display: inline-block; margin-right: 12px; font-weight: 600; opacity: .5; }
+mat-step-header[aria-selected="true"] { opacity: 1; }
+mat-date-range-input { display: flex; gap: 8px; align-items: center; }
+[hidden] { display: none; }
+/* Pravi portal skriva <input> čekboksa i crta svoj kvadratić. Zato Selenium ne sme da
+   klikne input nego omotač — ovde je isto, da test to zaista proveri. */
+.cdk-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
+                       clip: rect(0 0 0 0); white-space: nowrap; }
+.mat-checkbox-inner-container { display: inline-block; width: 18px; height: 18px;
+                                border: 2px solid #555; cursor: pointer; }
+.mat-checkbox-checked .mat-checkbox-inner-container { background: #b71c1c; }
+.mat-checkbox-disabled .mat-checkbox-inner-container { border-color: #bbb; cursor: not-allowed; }
+"""
+
+#: Zaglavlje aplikacije — postoji samo posle prijave, po njemu ``LOGGED_IN_MARKER``
+#: prepoznaje da sesija nije istekla.
+_ZAGLAVLJE = """
+<mat-toolbar class="mat-primary">
+  <span class="features"><span class="features-item">Vaučeri</span></span>
+  <span class="accountAndSettings">Nalog</span>
+</mat-toolbar>
 """
 
 
@@ -76,6 +104,9 @@ class PortalState:
     delay: float = 0.0
     #: Posle ovoliko sačuvanih rezervacija sesija "istekne". None = nikad.
     expire_after: int | None = None
+    #: True = registracija za vaučere još nije otvorena, pa je čekboks za izbor prijave
+    #: onemogućen. Tako portal izgleda van sezone (viđeno 27.07.2026).
+    reservations_locked: bool = False
 
     sessions: set[str] = field(default_factory=set)
     saved: list[dict] = field(default_factory=list)
@@ -207,30 +238,107 @@ class _Handler(BaseHTTPRequestHandler):
     # -- rezervacija ------------------------------------------------------
 
     def _reservation_page(self, error: str = "") -> None:
+        """Forma u tri koraka, kao na pravom portalu (provereno 27.07.2026).
+
+        Bitno je da se poklopi troje, jer je na tome palo dosta pretpostavki:
+
+        * datumi su **jedan** ``mat-date-range-input`` sa dva ugnežđena polja,
+          ``datumSmestajaOd`` / ``datumSmestajaDo`` — ne dva odvojena ``datumOd``;
+        * kroz korake se ide dugmetom koje ima **samo ikonicu**, bez teksta;
+        * „Odštampaj rezervaciju“ je onemogućeno dok se ne sačuva.
+        """
         if not self._session_token():
             self._redirect("/")
             return
         problem = f"<mat-error>{error}</mat-error>" if error else ""
+        zakljucano_klasa = " mat-checkbox-disabled" if self.state.reservations_locked else ""
+        zakljucano_input = " disabled" if self.state.reservations_locked else ""
         self._html(
             "Rezervacija smeštaja",
             f"""
+            {_ZAGLAVLJE}
             <h1>Prijava gosta</h1>
             <form method="post" action="{RESERVATION_PATH}">
-              <label>Ime</label>
-              <input formcontrolname="ime" name="ime" autocomplete="off">
-              <label>Prezime</label>
-              <input formcontrolname="prezime" name="prezime" autocomplete="off">
-              <label>JMBG</label>
-              <input formcontrolname="jmbg" name="jmbg" autocomplete="off">
-              <div id="jmbg-greska"></div>
-              <label>Datum dolaska</label>
-              <input formcontrolname="datumOd" name="datumOd" autocomplete="off">
-              <label>Datum odlaska</label>
-              <input formcontrolname="datumDo" name="datumDo" autocomplete="off">
+              <mat-horizontal-stepper>
+                <mat-step-header aria-selected="true">1 Podaci o korisniku</mat-step-header>
+                <mat-step-header aria-selected="false">2 Prijava ugostitelja</mat-step-header>
+                <mat-step-header aria-selected="false">3 Ostali podaci</mat-step-header>
+
+                <div class="mat-horizontal-stepper-content" data-korak="1">
+                  <label>Ime</label>
+                  <input formcontrolname="ime" name="ime" autocomplete="off">
+                  <label>Prezime</label>
+                  <input formcontrolname="prezime" name="prezime" autocomplete="off">
+                  <label>JMBG</label>
+                  <input formcontrolname="jmbg" name="jmbg" autocomplete="off">
+                  <div id="jmbg-greska"></div>
+                  <button type="button" class="mat-stepper-next"><mat-icon>navigate_next</mat-icon></button>
+                </div>
+
+                <div class="mat-horizontal-stepper-content" data-korak="2" hidden>
+                  <table class="mat-table">
+                    <tr><th>Rb.</th><th>Naziv objekta na prijavi</th><th>Akcije</th></tr>
+                    <tr>
+                      <td>1</td><td>sobe Test</td>
+                      <td>
+                        <mat-checkbox class="cbIzaberi{zakljucano_klasa}">
+                          <span class="mat-checkbox-inner-container">
+                            <input type="checkbox" name="prijava" value="1"
+                                   class="mat-checkbox-input cdk-visually-hidden"{zakljucano_input}>
+                          </span>
+                        </mat-checkbox>
+                      </td>
+                    </tr>
+                  </table>
+                  <button type="button" class="mat-stepper-next"><mat-icon>navigate_next</mat-icon></button>
+                </div>
+
+                <div class="mat-horizontal-stepper-content" data-korak="3" hidden>
+                  <label>Period boravka</label>
+                  <mat-date-range-input>
+                    <input formcontrolname="datumSmestajaOd" name="datumSmestajaOd"
+                           placeholder="Datum od" autocomplete="off">
+                    <span class="mat-date-range-input-separator">–</span>
+                    <input formcontrolname="datumSmestajaDo" name="datumSmestajaDo"
+                           placeholder="Datum do" autocomplete="off">
+                  </mat-date-range-input>
+                </div>
+              </mat-horizontal-stepper>
+
               {problem}
-              <button type="submit">Sačuvaj</button>
+              <div class="radnje">
+                <button type="submit" class="btn">Sačuvaj</button>
+                <button type="button" class="btn" disabled>
+                  <mat-icon>cloud_download</mat-icon>Odštampaj rezervaciju
+                </button>
+              </div>
             </form>
             <script>
+              // Kroz korake se ide klikom, a neaktivni koraci su sakriveni — isto kao
+              // mat-stepper. Zato se u kodu i mora kliknuti "dalje" pre nego što se
+              // dođe do datuma: sakriveno polje Selenium ne prima.
+              const koraci = [...document.querySelectorAll('.mat-horizontal-stepper-content')];
+              const zaglavlja = [...document.querySelectorAll('mat-step-header')];
+              document.querySelectorAll('.mat-stepper-next').forEach(dugme => {{
+                dugme.addEventListener('click', () => {{
+                  const trenutni = koraci.findIndex(k => !k.hidden);
+                  if (trenutni < 0 || trenutni + 1 >= koraci.length) return;
+                  koraci[trenutni].hidden = true;
+                  koraci[trenutni + 1].hidden = false;
+                  zaglavlja.forEach((z, i) => z.setAttribute('aria-selected', String(i === trenutni + 1)));
+                }});
+              }});
+
+              // mat-checkbox reaguje na klik po omotaču, ne po skrivenom input-u.
+              document.querySelectorAll('mat-checkbox').forEach(cb => {{
+                const polje = cb.querySelector('input');
+                cb.querySelector('.mat-checkbox-inner-container').addEventListener('click', () => {{
+                  if (polje.disabled) return;
+                  polje.checked = !polje.checked;
+                  cb.classList.toggle('mat-checkbox-checked', polje.checked);
+                }});
+              }});
+
               // Angular validira JMBG na izlazak iz polja; ovde radimo isto,
               // da bi se greška videla pre slanja forme — kao na pravom portalu.
               const polje = document.querySelector('[formcontrolname="jmbg"]');
@@ -267,9 +375,20 @@ class _Handler(BaseHTTPRequestHandler):
         if jmbg in self.state.rejected_jmbgs:
             self._reservation_page("JMBG nije pronađen u evidenciji")
             return
-        if not all(data.get(k, "").strip() for k in ("ime", "prezime", "jmbg", "datumOd", "datumDo")):
+
+        obavezna = ("ime", "prezime", "jmbg", "datumSmestajaOd", "datumSmestajaDo")
+        if not all(data.get(k, "").strip() for k in obavezna):
             self._reservation_page("Sva polja su obavezna")
             return
+
+        if not data.get("prijava"):
+            self._reservation_page("Nije izabrana prijava ugostitelja")
+            return
+
+        for polje in ("datumSmestajaOd", "datumSmestajaDo"):
+            if not _DATUM.fullmatch(data[polje].strip()):
+                self._reservation_page(f"Datum nije u očekivanom obliku: {data[polje]}")
+                return
 
         self.state.saved.append(data)
 
@@ -279,11 +398,13 @@ class _Handler(BaseHTTPRequestHandler):
         self._html(
             "Sačuvano",
             f"""
+            {_ZAGLAVLJE}
             <h1>Rezervacija</h1>
             <p class="ok">Gost je uspešno prijavljen.</p>
-            <p>{data.get('prezime', '')} {data.get('ime', '')} — {data.get('datumOd', '')} do {data.get('datumDo', '')}</p>
+            <p>{data.get('prezime', '')} {data.get('ime', '')} —
+               {data.get('datumSmestajaOd', '')} do {data.get('datumSmestajaDo', '')}</p>
             <form method="get" action="/vaucer.pdf">
-              <button type="submit">Preuzmi vaučer</button>
+              <button type="submit" class="btn"><mat-icon>cloud_download</mat-icon>Odštampaj rezervaciju</button>
             </form>
             <p><a href="{RESERVATION_PATH}">Novi gost</a></p>
             """,

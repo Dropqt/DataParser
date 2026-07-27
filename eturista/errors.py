@@ -22,6 +22,9 @@ class ErrorKind(str, Enum):
     JMBG_REJECTED_PORTAL = "JMBG_REJECTED_PORTAL"
     PORTAL_VALIDATION = "PORTAL_VALIDATION"
     DUPLICATE = "DUPLICATE"
+    #: Registracija za vaučere još nije otvorena — portal drži izbor prijave zaključan.
+    #: Ovo nije greška u podacima nego u trenutku: ista je za sve goste, pa prekida turu.
+    RESERVATION_LOCKED = "RESERVATION_LOCKED"
 
     # --- greške sesije ---
     LOGIN_FAILED = "LOGIN_FAILED"
@@ -57,6 +60,7 @@ _LABELS: dict[ErrorKind, str] = {
     ErrorKind.JMBG_REJECTED_PORTAL: "Portal je odbio JMBG",
     ErrorKind.PORTAL_VALIDATION: "Portal je odbio podatke",
     ErrorKind.DUPLICATE: "Gost je već prijavljen",
+    ErrorKind.RESERVATION_LOCKED: "Portal još nije otvorio rezervacije",
     ErrorKind.LOGIN_FAILED: "Prijava na nalog nije uspela",
     ErrorKind.SESSION_EXPIRED: "Sesija je istekla",
     ErrorKind.SELECTOR_NOT_FOUND: "Element nije nađen — portal je verovatno promenjen",

@@ -61,15 +61,36 @@ class BasePage:
             )
         return element
 
-    def find_optional(self, locator: Locator, timeout: float = PROBE_TIMEOUT) -> WebElement | None:
+    def find_optional(
+        self, locator: Locator, timeout: float = PROBE_TIMEOUT, *, visible: bool = False
+    ) -> WebElement | None:
         """Kao ``find``, ali vraća None umesto da baca. Za elemente kojih najčešće nema."""
         if not locator.is_ready:
             return None
-        return self._first_match(locator, timeout)
+        return self._first_match(locator, timeout, visible=visible)
 
-    def _first_match(self, locator: Locator, timeout: float) -> WebElement | None:
+    def is_visible(self, locator: Locator, timeout: float = PROBE_TIMEOUT) -> bool:
+        """Da li je element ne samo u DOM-u nego i na ekranu.
+
+        Forma rezervacije je stepper: polja svih koraka postoje u DOM-u sve vreme, ali
+        su sakrivena dok se ne dođe do njihovog koraka. ``is_present`` bi zato rekao da
+        polje za datum postoji i kad smo tek na prvom koraku.
+        """
+        return self.find_optional(locator, timeout, visible=True) is not None
+
+    def _first_match(
+        self, locator: Locator, timeout: float, *, visible: bool = False
+    ) -> WebElement | None:
         # Ukupan budžet se deli na kandidate: prvi dobija najviše vremena jer je
         # najverovatniji, ostali samo brzu proveru.
+        # Namerno ``visibility_of_any_elements_located``, ne ``visibility_of_element_located``:
+        # ovaj drugi gleda samo *prvi* element koji odgovara selektoru i čeka da baš on
+        # postane vidljiv. Forma rezervacije ima po jedno dugme „dalje“ u svakom koraku;
+        # kad smo na drugom koraku, prvo u DOM-u je sakriveno dugme prvog koraka, pa bi
+        # se čekalo do isteka vremena umesto da se uzme ono vidljivo.
+        condition = (
+            EC.visibility_of_any_elements_located if visible else EC.presence_of_element_located
+        )
         deadline = time.monotonic() + max(timeout, 0.0)
         for index, (by, value) in enumerate(locator.candidates):
             remaining = deadline - time.monotonic()
@@ -77,11 +98,10 @@ class BasePage:
                 break
             slice_timeout = max(remaining if index == 0 else min(remaining, 1.0), 0.1)
             try:
-                return WebDriverWait(self.driver, slice_timeout).until(
-                    EC.presence_of_element_located((by, value))
-                )
+                found = WebDriverWait(self.driver, slice_timeout).until(condition((by, value)))
             except (TimeoutException, WebDriverException):
                 continue
+            return found[0] if visible else found
         return None
 
     def is_present(self, locator: Locator, timeout: float = PROBE_TIMEOUT) -> bool:
@@ -124,7 +144,10 @@ class BasePage:
 
     def click(self, locator: Locator, timeout: float | None = None) -> None:
         """Klikni, sa jednim pokušajem preko JavaScript-a ako nešto prekriva dugme."""
-        element = self.find(locator, timeout)
+        self._click_element(self.find(locator, timeout), locator)
+
+    def _click_element(self, element: WebElement, locator: Locator) -> None:
+        """Klik na već pronađen element. ``locator`` služi samo za poruku o grešci."""
         try:
             WebDriverWait(self.driver, self.timeout).until(EC.element_to_be_clickable(element))
         except TimeoutException:
