@@ -22,7 +22,11 @@ pokretanju (Selenium Manager) - prvi put ume da potraje tridesetak sekundi.
 Na Windows-u ista tri koraka radi **`postavi.bat`** (dupli klik). Proveri da li ima
 Python i Chrome, napravi `.venv`, instalira biblioteke i napravi `.env` iz `.env.example`.
 Može da se pokrene i više puta: postojeći `.venv` se koristi, a `.env` se nikad ne
-prepisuje. Aplikacija se posle pokreće sa `.venv\Scripts\python run.py`.
+prepisuje.
+
+Posle toga se aplikacija pokreće duplim klikom na **`pokreni.bat`** - on uzima Python iz
+`.venv` foldera i otvara prozor aplikacije, bez komandne linije iza njega (`pythonw`).
+Ako `.venv` ili biblioteke fale, uputi na `postavi.bat` umesto da tiho ne uradi ništa.
 
 > `.env` drži lozinke i nalazi se u `.gitignore`. Repo je javan, pa aplikacija pri
 > pokretanju proveri da `.env` nije slučajno ušao u git i upozori ako jeste.
@@ -96,8 +100,13 @@ Zaglavlje je isto na svakom listu, pa je svejedno sa kog se kopira i na koji se 
 Cela `JMBG` kolona je formatirana kao **Tekst**, ne samo redovi u kojima ima formula -
 inače gost upisan ispod poslednjeg formuliranog reda ostane bez vodeće nule.
 
-Ako se nula ipak izgubi (lepljenje nosi svoj format i pregazi kolonu), kolona
-`PROVERA JMBG` požuti i napiše šta treba da stoji: `⚠ Fali vodeća nula - upiši 0…`.
+Ako lepljenje ipak pregazi format i ćelija postane broj, **sama ćelija u koloni `JMBG`
+požuti** - uslovno formatiranje po `ISNUMBER`. Poruka desno to isto kaže, ali u nju se ne
+gleda dok se ne posumnja, a žuto usred kolone se primeti odmah. Bojenje reda po statusu
+to ne prekriva.
+
+Ako se nula izgubi, kolona `PROVERA JMBG` požuti i napiše šta treba da stoji:
+`⚠ Fali vodeća nula - upiši 0…`.
 Unos i tada prolazi, jer aplikacija tu nulu vraća sama (`validation.clean_jmbg`), ali se
 u tabeli odmah vidi šta popraviti. Provera pre računanja izbaci i ono što lepljenje iz
 Worda donese - tvrde razmake, en/em crte, tačke - pa `010199-071012-1` prolazi kao ✓.

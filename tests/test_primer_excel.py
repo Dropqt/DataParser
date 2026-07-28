@@ -125,6 +125,35 @@ def test_jmbg_column_is_text_for_the_whole_column():
         assert book[naziv].column_dimensions[jmbg_col].number_format == "@", f"list {naziv}"
 
 
+def test_numeric_jmbg_cell_is_coloured():
+    """Ćelija u koju je lepljenje uvalilo broj mora da se vidi u samoj JMBG koloni.
+
+    Poruka u koloni PROVERA to već kaže, ali u nju se ne gleda dok se ne posumnja -
+    a žuta ćelija usred kolone se primeti odmah.
+    """
+    openpyxl = pytest.importorskip("openpyxl")
+    path = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
+    if not path.exists():
+        pytest.skip("primer još nije generisan - pokreni alati/napravi_primer_excel.py")
+
+    from alati.napravi_primer_excel import col
+
+    book = openpyxl.load_workbook(path)
+    jmbg_col = col("JMBG")
+    for naziv in [*NALOZI, PRIMERI_SHEET]:
+        pravila = [
+            rule
+            for opseg in book[naziv].conditional_formatting
+            if str(opseg.sqref).startswith(f"{jmbg_col}2:")
+            for rule in opseg.rules
+            for formula in rule.formula or []
+            if "ISNUMBER" in formula
+        ]
+        assert pravila, f"list {naziv}: nema bojenja za JMBG upisan kao broj"
+        # Bez stopIfTrue bi zeleno bojenje reda po statusu prekrilo upozorenje.
+        assert pravila[0].stopIfTrue, f"list {naziv}: pravilo se prekriva bojenjem reda"
+
+
 def test_formulas_never_point_at_a_single_cell():
     """Sve reference idu preko INDEX($X:$X;ROW()) - videti ``napravi_primer_excel.ref``.
 

@@ -337,6 +337,19 @@ def _add_conditional_formatting(sheet) -> None:
         FormulaRule(formula=[f'{ref("PROVERA JMBG")}<>""'], fill=RED, font=RED_TEXT),
     )
 
+    # JMBG koji je postao broj: lepljenje nosi format izvora i njime pregazi Tekst na
+    # koloni. Boji se sama ćelija, a ne samo poruka desno - u poruku se ne gleda dok se
+    # ne posumnja, a žuta ćelija usred kolone se vidi odmah. Ide pre bojenja reda po
+    # statusu, da je zeleno "prijavljen" ne prekrije.
+    jmbg = col("JMBG")
+    sheet.conditional_formatting.add(
+        f"{jmbg}2:{jmbg}{ROWS + 1}",
+        FormulaRule(
+            formula=[f'ISNUMBER({ref("JMBG")})'],
+            fill=YELLOW, font=YELLOW_TEXT, stopIfTrue=True,
+        ),
+    )
+
     # STATUS kolona - popunjava se lepljenjem rezultata iz aplikacije.
     status_col = col("STATUS")
     status = f"{status_col}2:{status_col}{ROWS + 1}"
@@ -417,6 +430,8 @@ def build_instructions_sheet(workbook: Workbook) -> None:
         ("", "Računa se automatski, po zvaničnoj formuli za kontrolnu cifru."),
         ("", "Zeleno '✓ ispravan' znači da broj matematički može da postoji."),
         ("", "Žuto '⚠' znači da je broj dobar ali ćelija nije - npr. fali vodeća nula."),
+        ("", f"Ako požuti sama ćelija u koloni {col('JMBG')}, u nju je lepljenjem upao broj umesto"),
+        ("", "teksta. Prekucaj je ili je nalepi ponovo bez formata - videti tačku 3."),
         ("", "Crveno kaže tačno šta ne valja, npr. 'Pogrešna kontrolna cifra - treba 8'."),
         ("", f"Kolone {FIRST_HELPER}-{LAST_HELPER} su pomoćne (sakrivene) - služe samo formuli u "
          f"koloni {col('PROVERA JMBG')}. Ne diraj ih."),
