@@ -2,19 +2,19 @@
 
 Zašto ovako:
 
-* Kad portal izbaci update, menja se **samo ovaj fajl** — nigde drugde u kodu nema
+* Kad portal izbaci update, menja se **samo ovaj fajl** - nigde drugde u kodu nema
   ni jednog CSS/XPath stringa.
 * Svaki selektor ima **opis na srpskom**, pa u logu piše "Polje za JMBG gosta nije nađeno"
   umesto ``NoSuchElementException``.
 * Svaki selektor ima **stanje** (potvrđen / pretpostavka / zaključan), pa
   ``run.py --proveri-selektore`` može da javi šta je još neprovereno.
 * Dinamički Angular Material ID-jevi (``cdk-describedby-message-4`` iz prve ture) se
-  **ne koriste** — taj broj se menja između build-ova portala i garantovano puca.
+  **ne koriste** - taj broj se menja između build-ova portala i garantovano puca.
 
 Redosled traženja: prvo ``primary``, pa redom ``fallbacks``.
 
 **Portal piše ćirilicom.** Dugme za prijavu nosi tekst ``Пријава на систем``, ne
-``Prijava``. Zato se nijedan selektor ne oslanja na golo ``contains(., 'Sačuvaj')`` —
+``Prijava``. Zato se nijedan selektor ne oslanja na golo ``contains(., 'Sačuvaj')`` -
 tekst se traži preko :func:`tekst_sadrzi`, koje pokriva oba pisma i ne gleda veličinu
 slova (portal dosta toga prikazuje verzalom preko CSS-a, pa se u DOM-u nađe i jedno i
 drugo).
@@ -67,15 +67,15 @@ REGISTRY: list[Locator] = []
 
 
 # ---------------------------------------------------------------------------
-# Traženje po tekstu — oba pisma, svejedno da li je verzal ili kurent
+# Traženje po tekstu - oba pisma, svejedno da li je verzal ili kurent
 # ---------------------------------------------------------------------------
 
-# XPath koji browser razume je 1.0 — nema ni ``lower-case()`` ni promenljive, pa se sve
+# XPath koji browser razume je 1.0 - nema ni ``lower-case()`` ni promenljive, pa se sve
 # radi jednim ``translate()``. On u istom prolazu:
 #   * spušta verzal u kurent  (SAČUVAJ → sačuvaj),
 #   * i skida kvačice sa latinice  (sačuvaj → sacuvaj).
 # Zato se varijante pišu bez kvačica i onda jedno „sacuvaj“ hvata i Sačuvaj i SACUVAJ.
-# Ćirilica se ne preslovljava — piše se svojim slovima.
+# Ćirilica se ne preslovljava - piše se svojim slovima.
 _KVAČICE = "ČĆŠŽĐ" + "čćšžđ"
 _BEZ_KVAČICA = "ccszd" + "ccszd"
 
@@ -89,7 +89,7 @@ def tekst_sadrzi(*varijante: str, cvor: str = ".") -> str:
     """XPath uslov: ``cvor`` sadrži bilo koju varijantu.
 
     Ne gleda ni veličinu slova ni kvačice, pa se varijante pišu **malim slovima i bez
-    kvačica** — ćirilicom (portal je ćirilični na javnoj strani) i latinicom (aplikacija
+    kvačica** - ćirilicom (portal je ćirilični na javnoj strani) i latinicom (aplikacija
     iza prijave je latinična)::
 
         //button[{tekst_sadrzi('сачувај', 'sacuvaj')}]
@@ -97,7 +97,7 @@ def tekst_sadrzi(*varijante: str, cvor: str = ".") -> str:
     for varijanta in varijante:
         if set(varijanta) & set(_KVAČICE):
             raise ValueError(
-                f"varijanta {varijanta!r} ima kvačice — posle translate() ih tekst na "
+                f"varijanta {varijanta!r} ima kvačice - posle translate() ih tekst na "
                 f"stranici više nema, pa se ovo nikad ne bi poklopilo. Piši 'sacuvaj'."
             )
     haystack = f"translate(normalize-space({cvor}), '{_OD}', '{_NA}')"
@@ -132,7 +132,7 @@ LOGIN_USERNAME = _loc(
     "LOGIN_USERNAME",
     (By.ID, "username"),
     "Polje za korisničko ime",
-    # Kontrola se u Angular formi zove ``email``, iako je ID ``username`` — polje nema
+    # Kontrola se u Angular formi zove ``email``, iako je ID ``username`` - polje nema
     # ni ``name`` ni ``type``, pa ``input[type=email]`` ovde ne hvata ništa.
     fallbacks=(
         (By.CSS_SELECTOR, 'input[formcontrolname="email"]'),
@@ -160,7 +160,7 @@ LOGIN_SUBMIT = _loc(
         (By.CSS_SELECTOR, "button.red-btn"),
         dugme_sa_tekstom("пријава", "prijava", "улогуј", "uloguj"),
     ),
-    state=LocatorState.CONFIRMED,  # portal, 27.07.2026 — tekst je „Пријава на систем“
+    state=LocatorState.CONFIRMED,  # portal, 27.07.2026 - tekst je „Пријава на систем“
 )
 
 LOGIN_ERROR = _loc(
@@ -171,7 +171,7 @@ LOGIN_ERROR = _loc(
     optional=True,
 )
 
-#: Element koji postoji samo kad je prijava prošla — po njemu znamo da smo ulogovani
+#: Element koji postoji samo kad je prijava prošla - po njemu znamo da smo ulogovani
 #: i da sesija nije istekla. Tačan izbor se potvrđuje pri inspekciji portala.
 LOGGED_IN_MARKER = _loc(
     "LOGGED_IN_MARKER",
@@ -189,7 +189,7 @@ LOGGED_IN_MARKER = _loc(
 
 
 # ---------------------------------------------------------------------------
-# Forma rezervacije — podaci gosta
+# Forma rezervacije - podaci gosta
 # ---------------------------------------------------------------------------
 
 GUEST_FIRST_NAME = _loc(
@@ -234,18 +234,18 @@ FIELD_ERROR = _loc(
 
 
 # ---------------------------------------------------------------------------
-# Forma rezervacije — izbor prijave ugostitelja (2. korak)
+# Forma rezervacije - izbor prijave ugostitelja (2. korak)
 # ---------------------------------------------------------------------------
 #
 # Drugi korak je tabela objekata koje ugostitelj ima prijavljene za šemu vaučera, sa
 # čekboksom po redu. Bez čekiranog reda se ne ide na treći korak.
 #
 # **Ovde je brava.** Dok registracija nije otvorena, čekboks je onemogućen i portal na
-# prelazak mišem javi „Rezervacija smeštaja je zaključana.“ — to je ono što se otključava
+# prelazak mišem javi „Rezervacija smeštaja je zaključana.“ - to je ono što se otključava
 # na dan otvaranja.
 
 #: Čekira se **sam ``mat-checkbox``**, ne ``input`` u njemu: pravi ``<input>`` nosi klasu
-#: ``cdk-visually-hidden``, pa ga Selenium ne može kliknuti (probano — klik prođe bez
+#: ``cdk-visually-hidden``, pa ga Selenium ne može kliknuti (probano - klik prođe bez
 #: efekta, čekboks ostane prazan).
 SCHEME_ROW = _loc(
     "SCHEME_ROW",
@@ -258,7 +258,7 @@ SCHEME_ROW = _loc(
     state=LocatorState.CONFIRMED,  # portal, 27.07.2026
 )
 
-#: Postoji samo dok je rezervacija zaključana — po njemu se prepoznaje da nema svrhe
+#: Postoji samo dok je rezervacija zaključana - po njemu se prepoznaje da nema svrhe
 #: pokretati turu, umesto da tura zapne na koraku koji se ne otvara.
 SCHEME_ROW_LOCKED = _loc(
     "SCHEME_ROW_LOCKED",
@@ -266,17 +266,17 @@ SCHEME_ROW_LOCKED = _loc(
     "Zaključan izbor prijave (registracija nije otvorena)",
     fallbacks=((By.CSS_SELECTOR, "mat-checkbox.cbIzaberi input[disabled]"),),
     optional=True,
-    state=LocatorState.CONFIRMED,  # portal, 27.07.2026 — zaključano
+    state=LocatorState.CONFIRMED,  # portal, 27.07.2026 - zaključano
 )
 
 
 # ---------------------------------------------------------------------------
-# Forma rezervacije — datumi (3. korak)
+# Forma rezervacije - datumi (3. korak)
 # ---------------------------------------------------------------------------
 #
 # Nisu dva odvojena polja nego jedan ``mat-date-range-input`` sa dva ugnežđena input-a
 # i zajedničkim kalendarom. Oba primaju kucanje (nisu ``readonly``), pa se popunjavaju
-# obično preko ``send_keys`` — kalendar ne mora da se otvara.
+# obično preko ``send_keys`` - kalendar ne mora da se otvara.
 #
 # Format koji portal sam upiše kad se datum izabere iz kalendara je ``15.7.2026``,
 # **bez vodeće nule**. Vidi ``reservation_page.format_date``.
@@ -311,7 +311,7 @@ DATE_TO = _loc(
 #: Zamena za cdk-describedby-message-4 iz prve ture.
 #:
 #: Forma je ``mat-horizontal-stepper`` sa 3 koraka, a dugme za sledeći korak je okrugli
-#: ``mat-mini-fab`` sa **samo ikonicom** — nema nikakav tekst, pa traženje po reči
+#: ``mat-mini-fab`` sa **samo ikonicom** - nema nikakav tekst, pa traženje po reči
 #: „Dalje“ ovde ne bi našlo ništa. Klasa ``mat-stepper-next`` dolazi od direktive
 #: ``matStepperNext`` i ne zavisi od prevoda.
 NEXT_BUTTON = _loc(
@@ -325,7 +325,7 @@ NEXT_BUTTON = _loc(
     state=LocatorState.CONFIRMED,  # portal, 27.07.2026
 )
 
-#: Stoji ispod stepper-a, van koraka — vidi se iz svakog koraka. Nema ``type="submit"``,
+#: Stoji ispod stepper-a, van koraka - vidi se iz svakog koraka. Nema ``type="submit"``,
 #: pa se traži po tekstu („Sačuvaj“).
 SUBMIT_RESERVATION = _loc(
     "SUBMIT_RESERVATION",
@@ -333,11 +333,11 @@ SUBMIT_RESERVATION = _loc(
     "Dugme za čuvanje rezervacije",
     fallbacks=((By.CSS_SELECTOR, 'button[type="submit"]'),),
     # Element je nađen na živom portalu; da li klik zaista sačuva rezervaciju proverava
-    # se tek probnom turom (faza 6) — dotad ovo znači samo „dugme postoji i nađe se“.
+    # se tek probnom turom (faza 6) - dotad ovo znači samo „dugme postoji i nađe se“.
     state=LocatorState.CONFIRMED,  # portal, 27.07.2026
 )
 
-#: Jedino što se nije moglo videti bez stvarnog čuvanja rezervacije — ostaje zaključano
+#: Jedino što se nije moglo videti bez stvarnog čuvanja rezervacije - ostaje zaključano
 #: do probne ture (faza 6).
 #:
 #: Kad se do toga dođe, postoji i drugi, pouzdaniji znak: dugme „Odštampaj rezervaciju“
@@ -345,7 +345,7 @@ SUBMIT_RESERVATION = _loc(
 #: po sebi potvrda. Vidi ``VOUCHER_DOWNLOAD``.
 CONFIRMATION = _loc(
     "CONFIRMATION",
-    # cvor="text()" gleda samo sopstveni tekst elementa — bez toga bi <html> i <body>
+    # cvor="text()" gleda samo sopstveni tekst elementa - bez toga bi <html> i <body>
     # takođe "sadržali" reč i uvek bili prvi pogodak.
     (By.XPATH, f"//*[{tekst_sadrzi('успешно', 'uspesno', cvor='text()')}]"),
     "Potvrda da je rezervacija sačuvana",
@@ -359,7 +359,7 @@ CONFIRMATION = _loc(
 # ---------------------------------------------------------------------------
 
 #: Na portalu piše **„Odštampaj rezervaciju“** (ikonica ``cloud_download``), ne „Preuzmi“.
-#: Dugme stoji pored „Sačuvaj“ i **onemogućeno je dok se rezervacija ne sačuva** — zato
+#: Dugme stoji pored „Sačuvaj“ i **onemogućeno je dok se rezervacija ne sačuva** - zato
 #: se posle čuvanja čeka da postane aktivno, vidi ``voucher_page``.
 VOUCHER_DOWNLOAD = _loc(
     "VOUCHER_DOWNLOAD",

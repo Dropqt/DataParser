@@ -1,4 +1,4 @@
-# === TAJNE — nikad ne sme u git ===
+# === TAJNE - nikad ne sme u git ===
 .env
 .env.local
 *.env
@@ -6,7 +6,7 @@
 logins.txt
 accounts.json
 
-# === Podaci gostiju — licni podaci, ne idu u repo ===
+# === Podaci gostiju - licni podaci, ne idu u repo ===
 *.xlsx
 *.xls
 *.csv

@@ -1,4 +1,4 @@
-# eTurista — prijava gostiju
+# eTurista - prijava gostiju
 
 Desktop aplikacija za prijavu gostiju na `portal.eturista.gov.rs`. Gosti se kopiraju iz
 glavnog Excela u tabelu aplikacije, prijave se preko izabranog naloga, i vrate se nazad
@@ -17,7 +17,7 @@ cp .env.example .env      # pa popuni korisnička imena i lozinke
 ```
 
 Treba i **Chrome ili Chromium** na sistemu. Chromedriver se skida automatski pri prvom
-pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
+pokretanju (Selenium Manager) - prvi put ume da potraje tridesetak sekundi.
 
 > `.env` drži lozinke i nalazi se u `.gitignore`. Repo je javan, pa aplikacija pri
 > pokretanju proveri da `.env` nije slučajno ušao u git i upozori ako jeste.
@@ -36,7 +36,7 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 
 1. U glavnom Excelu označi grupu gostiju (**ime, prezime, JMBG, dolazak, dana, e-mail**)
    i `Ctrl+C`.
-2. U aplikaciji `Ctrl+V`. Redovi se pojave u tabeli; kolone se prepoznaju same — iz
+2. U aplikaciji `Ctrl+V`. Redovi se pojave u tabeli; kolone se prepoznaju same - iz
    zaglavlja ako ga ima, inače po sadržaju.
    Bez Excela: **＋ Dodaj red** (ili taster `Ins`) daje prazan red u koji se kuca direktno.
    Tab prelazi na sledeću ćeliju, `Del` briše označene redove.
@@ -49,7 +49,7 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 ### Datum boravka
 
 Umesto opsega `05.10-10.10` unosi se **datum dolaska** i **broj dana**. Prazna kolona `Dana`
-znači 5 noćenja — koliko traje minimalni vaučer. `5 dana` znači 5 noćenja, dakle dolazak
+znači 5 noćenja - koliko traje minimalni vaučer. `5 dana` znači 5 noćenja, dakle dolazak
 05.10 → odlazak 10.10, isto kao stari zapis.
 
 Stari opseg i dalje radi: ako u koloni sa datumom nađe `05.10-10.10`, aplikacija ga pročita
@@ -57,7 +57,7 @@ kao i pre, a kolonu `Dana` tad ignoriše. Stare liste iz prve ture ne treba prep
 
 ### Listovi u `primer_gosti.xlsx`
 
-Po jedan radni list za svaki nalog — **Danica · Mileta · Zorica** — pa svako popunjava
+Po jedan radni list za svaki nalog - **Danica · Mileta · Zorica** - pa svako popunjava
 svoje goste bez mešanja. Nazivi listova su isti kao nalozi u padajućem meniju aplikacije.
 
 Radni listovi su prazni i spremni za unos; izmišljeni gosti stoje zasebno na listu
@@ -79,11 +79,11 @@ vauceri/
 
 Adresa se upisuje **jednom**, u polje *Vaučeri na:* iznad tabele (pamti se u `.env` kao
 `ETURISTA_EMAIL`). Kolona `E-mail` se popunjava samo za goste čiji vaučeri idu negde
-drugde — prazna ćelija znači adresu iz tog polja.
+drugde - prazna ćelija znači adresu iz tog polja.
 
 Ako se polje ostavi prazno, vaučeri ostaju u korenu `vauceri/`, kao i pre.
 
-Pre nego što tura krene, u log se ispiše koliko vaučera ide u koji folder — bolje da se
+Pre nego što tura krene, u log se ispiše koliko vaučera ide u koji folder - bolje da se
 pogrešna adresa vidi odmah nego da se posle traži gde je 30 PDF-ova završilo.
 
 ### Bojenje u glavnom Excelu
@@ -105,7 +105,7 @@ bojenje u glavnom Excelu podešava jednom preko *conditional formatting* nad `ST
 
 ## Šta se dešava kad nešto pukne
 
-Greška **nikad ne prekida turu** — gost pocrveni, snimi se screenshot, forma se osveži i
+Greška **nikad ne prekida turu** - gost pocrveni, snimi se screenshot, forma se osveži i
 ide se na sledećeg gosta.
 
 | Razlog u tabeli | Šta znači | Šta uraditi |
@@ -116,7 +116,7 @@ ide se na sledećeg gosta.
 | `Ne mogu da pročitam datum dolaska…` | datum se ne može pročitati | ispravi ćeliju |
 | `Broj dana mora biti bar 1` | besmislen broj noćenja | ispravi ćeliju |
 | `E-mail ne izgleda ispravno…` | u koloni E-mail nije adresa | ispravi ćeliju ili je isprazni |
-| `Element nije nađen — portal je verovatno promenjen` | portal je izmenjen | `run.py --proveri-selektore`, pa popravi `selectors.py` |
+| `Element nije nađen - portal je verovatno promenjen` | portal je izmenjen | `run.py --proveri-selektore`, pa popravi `selectors.py` |
 | `Portal nije odgovorio na vreme` | prolazna smetnja | *Uređivanje → Vrati greške u red*, pa ponovo |
 | `Sesija je istekla` | portal je izbacio nalog | rešava se sam (ponovna prijava) |
 
@@ -126,16 +126,16 @@ Pri pokretanju aplikacija tiho pita GitHub ima li novijih izmena na `main` grani
 samo ako ih ima. Repo je javan, pa nije potreban token; šalje se običan zahtev i ništa o
 tebi ni o gostima se ne prenosi. Ako nema mreže, ćuti i nastavlja normalno.
 
-Poredi se tvoj lokalni commit sa `main`, pa dobijaš i tačan broj commit-a zaostatka — i
+Poredi se tvoj lokalni commit sa `main`, pa dobijaš i tačan broj commit-a zaostatka - i
 nema lažne uzbune kad si lokalno ispred. Ručno: *Pomoć → Proveri ima li nove verzije*.
 Isključivanje: `ETURISTA_PROVERA_AZURIRANJA=false` u `.env`.
 
-Ovo **samo javlja** — ne instalira ništa. Ažuriranje je `git pull` pa ponovo pokreni.
+Ovo **samo javlja** - ne instalira ništa. Ažuriranje je `git pull` pa ponovo pokreni.
 
 ---
 
 Napredak se snima u bazu posle **svakog** gosta. Ako program pukne nasred ture od 30
-gostiju, *Datoteka → Otvori raniju turu* nastavlja od prvog neobrađenog — bez duplikata.
+gostiju, *Datoteka → Otvori raniju turu* nastavlja od prvog neobrađenog - bez duplikata.
 Gost koji je bio u obradi kad je program pukao dobija napomenu da se ručno proveri.
 
 ---
@@ -167,25 +167,25 @@ legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
 
 Rezervacija je wizard sa tri koraka (provereno 27.07.2026):
 
-1. **Podaci o korisniku vaučera** — ime, prezime, JMBG
-2. **Prijava ugostitelja za šemu** — tabela objekata; bira se čekboks u redu.
+1. **Podaci o korisniku vaučera** - ime, prezime, JMBG
+2. **Prijava ugostitelja za šemu** - tabela objekata; bira se čekboks u redu.
    Van sezone je taj čekboks zaključan i to je jedino što nas deli od prve ture
-3. **Ostali podaci** — datum dolaska i odlaska, pa *Sačuvaj* i *Odštampaj rezervaciju*
+3. **Ostali podaci** - datum dolaska i odlaska, pa *Sačuvaj* i *Odštampaj rezervaciju*
 
 Dve stvari koje deluju kao sitnica a lome tok: dugme za sledeći korak nema **nikakav
-tekst** (samo ikonicu), a datum se piše **bez vodeće nule** — `5.10.2026`, ne `05.10.2026`.
+tekst** (samo ikonicu), a datum se piše **bez vodeće nule** - `5.10.2026`, ne `05.10.2026`.
 
 ### Kad portal izmeni sajt
 
 Menja se **samo `eturista/portal/selectors.py`**. Nigde drugde u kodu nema CSS ni XPath
 stringa. Svaki selektor ima opis na srpskom, listu rezervnih selektora i stanje:
 
-- `potvrđen` — provereno na živom portalu
-- `pretpostavka` — radilo u prvoj turi ili je logična pretpostavka
-- `zaključan` — deo portala koji još nije otvoren
+- `potvrđen` - provereno na živom portalu
+- `pretpostavka` - radilo u prvoj turi ili je logična pretpostavka
+- `zaključan` - deo portala koji još nije otvoren
 
 Tekst se traži preko `tekst_sadrzi()`, koje ne gleda ni pismo ni kvačice ni veličinu
-slova — javna strana portala je ćirilična, a aplikacija iza prijave latinična.
+slova - javna strana portala je ćirilična, a aplikacija iza prijave latinična.
 
 `run.py --proveri-selektore` se prijavi na portal i ispiše koji selektori razrešavaju
 element a koji ne.

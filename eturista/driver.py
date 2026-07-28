@@ -4,7 +4,7 @@ Dve stvari koje su u prvoj turi bile pogrešne i ovde su rešene:
 
 1. **PDF se otvarao u pregledaču umesto da se snimi.** Bez
    ``plugins.always_open_pdf_externally`` browser prikaže vaučer u ugrađenom PDF
-   vieweru i nikakav fajl ne stigne na disk — zato preimenovanje nikad nije radilo.
+   vieweru i nikakav fajl ne stigne na disk - zato preimenovanje nikad nije radilo.
 2. **Preimenovanje "najskorijeg fajla u ~/Downloads".** To je pogađanje: uhvati tuđi
    fajl, ili uhvati nedovršen download. Ovde se pamti stanje foldera pre klika i čeka
    se da se pojavi tačno jedan nov, završen fajl.
@@ -49,7 +49,7 @@ class BrowserSession:
     """Jedan browser sa svojim profilom i svojim folderom za preuzimanje.
 
     Svaka sesija ima **zaseban** profil i download folder, pa paralelni režim (2-3
-    naloga odjednom) ne traži nikakve izmene — samo se napravi više sesija.
+    naloga odjednom) ne traži nikakve izmene - samo se napravi više sesija.
     """
 
     def __init__(
@@ -104,7 +104,7 @@ class BrowserSession:
         except WebDriverException as exc:
             raise PortalError(
                 ErrorKind.BROWSER_CRASHED,
-                "Ne mogu da pokrenem Chrome — proveri da je instaliran",
+                "Ne mogu da pokrenem Chrome - proveri da je instaliran",
                 str(exc),
             ) from exc
 

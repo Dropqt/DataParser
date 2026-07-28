@@ -59,7 +59,7 @@ def test_wrong_length_is_rejected():
 
 
 def test_impossible_birth_date_is_rejected():
-    # 29.02.2007 — 2007 nije prestupna
+    # 29.02.2007 - 2007 nije prestupna
     with pytest.raises(ValidationError, match="nepostojeći datum"):
         validate_jmbg(make_jmbg("290200771000"))
 
@@ -207,7 +207,7 @@ def test_parse_days_rejects_nonsense(raw):
 
 
 def test_five_days_means_five_nights():
-    """05.10 + 5 dana = 10.10 — isto kao stari zapis 05.10-10.10."""
+    """05.10 + 5 dana = 10.10 - isto kao stari zapis 05.10-10.10."""
     stay = stay_from_days(date(2026, 10, 5), 5)
     assert stay.departure == date(2026, 10, 10)
     assert stay.nights == 5
@@ -271,7 +271,7 @@ def test_valid_fields_are_kept_even_when_another_fails():
 # --- e-mail i folderi -------------------------------------------------------
 
 def test_empty_email_is_not_an_error():
-    """Gost bez svoje adrese ide u podrazumevani folder — to nije greška."""
+    """Gost bez svoje adrese ide u podrazumevani folder - to nije greška."""
     assert validate_email("") == ""
     assert validate_email("   ") == ""
 
@@ -282,7 +282,7 @@ def test_email_is_normalized():
 
 
 @pytest.mark.parametrize("bad", [
-    "Marko Petrović",        # ime umesto adrese — pomerena kolona
+    "Marko Petrović",        # ime umesto adrese - pomerena kolona
     "marko@primer",          # nema domen
     "marko(at)primer.rs",
     "a@b.rs, c@d.rs",        # dve adrese u jednoj ćeliji

@@ -1,4 +1,4 @@
-"""Model tabele gostiju — ono što u aplikaciji izgleda kao mali Excel.
+"""Model tabele gostiju - ono što u aplikaciji izgleda kao mali Excel.
 
 Boje redova su glavni način praćenja: zeleno je prijavljen, crveno je pao, žuto je u toku.
 Nijanse su poluprovidne pa rade i u svetloj i u tamnoj temi.
@@ -48,7 +48,7 @@ COL_STATUS = _column_index("status")
 #: Prva kolona u koju se kuca. Ovde se otvara unos kad se ručno doda red.
 COL_FIRST_EDITABLE = next(i for i, column in enumerate(COLUMNS) if column.editable)
 
-#: Poluprovidne podloge — čitljive i na beloj i na tamnoj pozadini.
+#: Poluprovidne podloge - čitljive i na beloj i na tamnoj pozadini.
 _ROW_COLORS: dict[Status, QColor | None] = {
     Status.OK: QColor(46, 160, 67, 55),
     Status.ERROR: QColor(218, 54, 51, 60),
@@ -144,7 +144,7 @@ class GuestTableModel(QAbstractTableModel):
             return guest.stay_display
         if key == "email":
             # Prazna ćelija znači podrazumevanu adresu; ona se ne upisuje u red da se
-            # ne bi zaledila — menja se u traci i važi za sve prazne.
+            # ne bi zaledila - menja se u traci i važi za sve prazne.
             return guest.email or guest.email_raw
         if key == "status":
             return guest.status.label
@@ -209,7 +209,7 @@ class GuestTableModel(QAbstractTableModel):
         else:
             return False
 
-        # Ispravka podataka odmah menja boju reda — ne čeka se pokretanje ture.
+        # Ispravka podataka odmah menja boju reda - ne čeka se pokretanje ture.
         guest.validate(self.year)
         self.refresh_row(index.row())
         return True
@@ -251,7 +251,7 @@ class GuestTableModel(QAbstractTableModel):
         self.set_guests([])
 
     def renumber(self) -> None:
-        """Redni brojevi moraju biti bez rupa — po njima se gost pamti u bazi."""
+        """Redni brojevi moraju biti bez rupa - po njima se gost pamti u bazi."""
         for position, guest in enumerate(self.guests, start=1):
             guest.row = position
         self.refresh_all()

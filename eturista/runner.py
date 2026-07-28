@@ -2,11 +2,11 @@
 
 Pravila po dogovoru:
 
-* Greška **nikad ne prekida turu** — gost pocrveni, snimi se screenshot, uradi se tvrd
+* Greška **nikad ne prekida turu** - gost pocrveni, snimi se screenshot, uradi se tvrd
   refresh forme i ide se na sledećeg. (Stara skripta je imala ``break`` pa je jedna
   greška gubila ostatak liste.)
 * Svaki gost se snima u bazu **odmah po obradi**, pa nagli prekid ne gubi napredak.
-* Istekla sesija nije greška gosta — pokuša se ponovna prijava pa se gost ponovi.
+* Istekla sesija nije greška gosta - pokuša se ponovna prijava pa se gost ponovi.
 
 Jedinica rada je **sesija** = (nalog, sopstveni browser, lista gostiju). Paralelni režim
 je zato samo pokretanje više Runner-a odjednom, bez ijedne izmene u ovom fajlu.
@@ -42,14 +42,14 @@ class RunOptions:
     download_vouchers: bool = True
     #: Snimanje ekrana pri svakoj grešci.
     screenshots: bool = True
-    #: Adresa za goste koji nemaju svoju upisanu — po njoj se pravi podfolder sa
+    #: Adresa za goste koji nemaju svoju upisanu - po njoj se pravi podfolder sa
     #: vaučerima. Dolazi iz podešavanja, a u aplikaciji se menja u traci pre pokretanja.
     default_email: str = ""
 
 
 @dataclass
 class Reporter:
-    """Kuke ka GUI-ju. Sve su opcione — runner radi i bez ijedne."""
+    """Kuke ka GUI-ju. Sve su opcione - runner radi i bez ijedne."""
 
     on_message: Callable[[str, str], None] | None = None
     on_guest_started: Callable[[Guest], None] | None = None
@@ -86,7 +86,7 @@ class RunResult:
         if self.fatal:
             return f"Tura prekinuta: {self.fatal}"
         prefix = "Zaustavljeno" if self.stopped else "Gotovo"
-        return f"{prefix} — {self.succeeded} prijavljeno, {self.failed} grešaka (od {self.total})"
+        return f"{prefix} - {self.succeeded} prijavljeno, {self.failed} grešaka (od {self.total})"
 
 
 class Runner:
@@ -157,11 +157,11 @@ class Runner:
 
                 self.reporter.progress(index, len(guests))
 
-                # Zaključana rezervacija nije do gosta — sledećih 29 bi palo isto tako.
+                # Zaključana rezervacija nije do gosta - sledećih 29 bi palo isto tako.
                 if guest.error and guest.error.kind is ErrorKind.RESERVATION_LOCKED:
                     result.fatal = guest.error.text
                     self.reporter.message(
-                        "Portal još nije otvorio rezervacije — prekidam turu.", "ERROR"
+                        "Portal još nije otvorio rezervacije - prekidam turu.", "ERROR"
                     )
                     self._log_db(guest.error.text, "ERROR")
                     break
@@ -226,12 +226,12 @@ class Runner:
                 error = self._classify(exc)
 
                 if error.kind is ErrorKind.SESSION_EXPIRED and attempt < self.options.max_attempts:
-                    self.reporter.message("    sesija istekla — prijavljujem se ponovo", "WARN")
+                    self.reporter.message("    sesija istekla - prijavljujem se ponovo", "WARN")
                     if self._relogin():
                         continue
 
                 if error.kind.is_retryable and attempt < self.options.max_attempts:
-                    self.reporter.message(f"    {error.text} — pokušavam ponovo", "WARN")
+                    self.reporter.message(f"    {error.text} - pokušavam ponovo", "WARN")
                     self._recover()
                     continue
 
@@ -255,7 +255,7 @@ class Runner:
             if self.login_page.is_present(S.LOGIN_USERNAME, timeout=1.0):
                 return GuestError(
                     ErrorKind.SESSION_EXPIRED,
-                    "Portal je vratio na prijavu — sesija je istekla",
+                    "Portal je vratio na prijavu - sesija je istekla",
                     exc.detail,
                 )
         return exc.as_guest_error()
@@ -271,7 +271,7 @@ class Runner:
     def _download_voucher(self, guest: Guest) -> str | None:
         """Preuzmi vaučer ako je preuzimanje uopšte podešeno.
 
-        Dok je ``VOUCHER_DOWNLOAD`` zaključan, gost se i dalje računa kao prijavljen —
+        Dok je ``VOUCHER_DOWNLOAD`` zaključan, gost se i dalje računa kao prijavljen -
         samo bez PDF-a. Tako tura može da radi i pre nego što se taj deo portala otvori.
         """
         if not self.options.download_vouchers or self.voucher_page is None:
@@ -282,7 +282,7 @@ class Runner:
         return self.voucher_page.download(guest, target, self.config.year)
 
     def _recover(self) -> None:
-        """Tvrd refresh forme — sledeći gost kreće od čistog stanja."""
+        """Tvrd refresh forme - sledeći gost kreće od čistog stanja."""
         if self.reservation_page is not None:
             self.reservation_page.reload()
 

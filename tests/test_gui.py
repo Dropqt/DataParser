@@ -1,4 +1,4 @@
-"""Testovi tabele i prozora — bez ekrana (offscreen) i bez browsera."""
+"""Testovi tabele i prozora - bez ekrana (offscreen) i bez browsera."""
 
 from __future__ import annotations
 
@@ -201,7 +201,7 @@ def test_paste_appends_instead_of_replacing(window):
 
 
 def test_manual_row_is_added_empty_and_not_red(window):
-    """Ručno dodat red je prazan, ali nije greška — tek se popunjava."""
+    """Ručno dodat red je prazan, ali nije greška - tek se popunjava."""
     window._add_row()
 
     guest = window.model.guests[0]

@@ -19,12 +19,12 @@ RESERVATION_PATH = "/vauceri/rezervacija-smestaja"
 def format_date(date: _date) -> str:
     """Datum onako kako ga portal sam upiše kad se izabere iz kalendara: ``15.7.2026``.
 
-    **Bez vodeće nule** — provereno tako što je datum izabran iz portalovog kalendara i
+    **Bez vodeće nule** - provereno tako što je datum izabran iz portalovog kalendara i
     pročitano šta je ostalo u polju. Nije ``strftime``: ``%-d`` radi samo na Linux-u a
     ``%#d`` samo na Windows-u, a aplikacija se pakuje za oba (faza 7).
 
     Bitno je i zbog provere u ``BasePage.fill``, koja posle upisa čita polje nazad i
-    poredi cifre — ``15.07.2026`` i ``15.7.2026`` joj nisu isti broj.
+    poredi cifre - ``15.07.2026`` i ``15.7.2026`` joj nisu isti broj.
     """
     return f"{date.day}.{date.month}.{date.year}"
 
@@ -45,7 +45,7 @@ class ReservationPage(BasePage):
             raise PortalError(ErrorKind.TIMEOUT, "Forma rezervacije se ne otvara", str(exc)) from exc
 
     def reload(self) -> None:
-        """Tvrd refresh — koristi se posle greške da se forma očisti za sledećeg gosta."""
+        """Tvrd refresh - koristi se posle greške da se forma očisti za sledećeg gosta."""
         try:
             self.driver.get(self.url)
         except WebDriverException:
@@ -80,7 +80,7 @@ class ReservationPage(BasePage):
             pass
 
     def fill_dates(self, stay: Stay) -> None:
-        """Datum dolaska i odlaska — 3. korak forme.
+        """Datum dolaska i odlaska - 3. korak forme.
 
         Polja jesu deo kalendara (``mat-date-range-input``), ali primaju i običan unos,
         pa se kuca direktno i kalendar se ne otvara.
@@ -101,7 +101,7 @@ class ReservationPage(BasePage):
         """Dugme za sledeći korak.
 
         Svaki korak ima svoje dugme i sva su u DOM-u, ali neaktivna imaju
-        ``visibility: hidden`` — zato se traži **vidljivo**, inače bi se uvek klikalo
+        ``visibility: hidden`` - zato se traži **vidljivo**, inače bi se uvek klikalo
         dugme prvog koraka.
         """
         element = self.find_optional(S.NEXT_BUTTON, timeout=self.timeout, visible=True)
@@ -117,7 +117,7 @@ class ReservationPage(BasePage):
 
         Ako je registracija za vaučere još zaključana, portal drži čekboks onemogućenim
         (tooltip: „Rezervacija smeštaja je zaključana.“). To nije greška u podacima nego
-        u trenutku — ista je za svakog gosta, pa se javlja jasno i tura se prekida.
+        u trenutku - ista je za svakog gosta, pa se javlja jasno i tura se prekida.
         """
         if self.is_present(S.SCHEME_ROW_LOCKED):
             raise PortalError(
@@ -132,7 +132,7 @@ class ReservationPage(BasePage):
     def register(self, guest: Guest) -> None:
         """Prijavi jednog gosta kroz sva tri koraka forme.
 
-        Redosled je namerno takav da se JMBG proveri **pre** nego što se bilo šta pošalje —
+        Redosled je namerno takav da se JMBG proveri **pre** nego što se bilo šta pošalje -
         pogrešan JMBG tako ne troši ni jedan klik dalje.
 
             1. ime, prezime, JMBG

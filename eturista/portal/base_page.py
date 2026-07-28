@@ -1,6 +1,6 @@
 """Osnova za sve stranice portala.
 
-Sve čekanje ide kroz ``WebDriverWait`` — nema ``time.sleep()``. Stara skripta je čekala
+Sve čekanje ide kroz ``WebDriverWait`` - nema ``time.sleep()``. Stara skripta je čekala
 fiksnih 1-5 sekundi po koraku, što je istovremeno i sporo (čeka i kad je stranica spremna)
 i nepouzdano (ne čeka dovoljno kad portal zaškripi).
 """
@@ -42,7 +42,7 @@ class BasePage:
     def find(self, locator: Locator, timeout: float | None = None) -> WebElement:
         """Nađi element probajući redom sve kandidate iz lokatora.
 
-        Baca ``PortalError(SELECTOR_NOT_FOUND)`` sa opisom na srpskom — nikad goli
+        Baca ``PortalError(SELECTOR_NOT_FOUND)`` sa opisom na srpskom - nikad goli
         ``NoSuchElementException``, da bi u koloni RAZLOG pisalo nešto upotrebljivo.
         """
         if not locator.is_ready:
@@ -122,7 +122,7 @@ class BasePage:
         """Upiši vrednost i proveri da je stvarno ušla.
 
         Angular ume da odbije ili preformatira unos (maske za JMBG i datume), pa se
-        posle upisa čita nazad — bolje da ovde padne nego da se pošalje prazno polje.
+        posle upisa čita nazad - bolje da ovde padne nego da se pošalje prazno polje.
         """
         element = self.find(locator, timeout)
         try:
@@ -151,7 +151,7 @@ class BasePage:
         try:
             WebDriverWait(self.driver, self.timeout).until(EC.element_to_be_clickable(element))
         except TimeoutException:
-            pass  # svejedno pokušavamo — provera ispod je merodavna
+            pass  # svejedno pokušavamo - provera ispod je merodavna
 
         try:
             element.click()

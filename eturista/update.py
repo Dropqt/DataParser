@@ -7,7 +7,7 @@ Poredi se **lokalni commit** sa granom ``main`` preko ``compare`` API-ja. Time s
 i tačan broj commit-a zaostatka, i nema lažne uzbune kad si lokalno ispred (npr. radiš na
 nečemu što još nije gurnuto).
 
-Ovo samo **javlja** da postoji novija verzija — ne instalira ništa.
+Ovo samo **javlja** da postoji novija verzija - ne instalira ništa.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ class UpdateInfo:
         if not self.available:
             return "Program je ažuran."
         commits = "commit" if self.behind_by == 1 else "commit-a"
-        text = f"Dostupna je novija verzija — zaostaješ {self.behind_by} {commits}."
+        text = f"Dostupna je novija verzija - zaostaješ {self.behind_by} {commits}."
         if self.last_message:
             text += f"\nPoslednja izmena: {self.last_message}"
         if self.diverged:
@@ -75,7 +75,7 @@ def is_enabled() -> bool:
 def local_revision() -> str | None:
     """Commit na kom je ova kopija programa.
 
-    Prvo se gleda ``revision.txt`` (upisuje se pri pakovanju u .exe), pa tek onda git —
+    Prvo se gleda ``revision.txt`` (upisuje se pri pakovanju u .exe), pa tek onda git -
     spakovana aplikacija nema git uz sebe.
     """
     baked = app_dir() / REVISION_FILE
@@ -109,7 +109,7 @@ def _get_json(url: str, timeout: float) -> dict | None:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
-        # Nema mreže, GitHub ne odgovara, prekoračen limit zahteva — sve isto:
+        # Nema mreže, GitHub ne odgovara, prekoračen limit zahteva - sve isto:
         # provera ažuriranja nikad ne sme da smeta pokretanju programa.
         return None
 
@@ -123,7 +123,7 @@ def check_for_update(timeout: float = DEFAULT_TIMEOUT) -> UpdateInfo | None:
     data = _get_json(f"{_API}/compare/{local}...{BRANCH}", timeout)
 
     if data is None or "status" not in data:
-        # Lokalni commit GitHub ne poznaje (nije gurnut) — padamo na prosto poređenje.
+        # Lokalni commit GitHub ne poznaje (nije gurnut) - padamo na prosto poređenje.
         return _fallback(local, timeout)
 
     remote = (data.get("commits") or [{}])[-1].get("sha") or local
@@ -145,7 +145,7 @@ def _git_contains(commit: str) -> bool:
     """Da li lokalna istorija već sadrži taj commit.
 
     Rešava najčešći lažni alarm: radiš na nečemu što još nije gurnuto, pa je lokalni
-    commit nepoznat GitHub-u — a ti si zapravo *ispred* main-a, ne iza njega.
+    commit nepoznat GitHub-u - a ti si zapravo *ispred* main-a, ne iza njega.
     """
     try:
         result = subprocess.run(

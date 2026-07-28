@@ -18,7 +18,7 @@ DOWNLOAD_TIMEOUT = 60.0
 class VoucherPage(BasePage):
     """Klikne na preuzimanje i sačeka da fajl stvarno legne na disk.
 
-    Stara skripta je posle preuzimanja tražila "najskoriji fajl u ~/Downloads" — što
+    Stara skripta je posle preuzimanja tražila "najskoriji fajl u ~/Downloads" - što
     uhvati tuđi fajl ako se nešto drugo preuzelo u međuvremenu, i uhvati nedovršen
     fajl ako download još traje. Ovde se pamti stanje foldera pre klika, pa je novi
     fajl jednoznačno određen.

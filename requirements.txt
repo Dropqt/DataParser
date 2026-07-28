@@ -5,5 +5,5 @@ python-dotenv>=1.0
 # razvoj
 pytest>=8.0
 
-# alati — potrebno samo za regenerisanje primer/primer_gosti.xlsx
+# alati - potrebno samo za regenerisanje primer/primer_gosti.xlsx
 openpyxl>=3.1

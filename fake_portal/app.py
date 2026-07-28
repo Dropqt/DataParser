@@ -3,7 +3,7 @@
 Pravi portal je delom zaključan do otvaranja registracije za vaučere, a i kad se otvori
 ne želimo da svaka izmena u kodu znači pravu prijavu pravog gosta. Ovaj server servira
 formu sa **istim atributima** koje traži ``eturista/portal/selectors.py``, pa se ceo tok
-— prijava, popunjavanje, odbijen JMBG, čuvanje, preuzimanje vaučera — provozava lokalno.
+- prijava, popunjavanje, odbijen JMBG, čuvanje, preuzimanje vaučera - provozava lokalno.
 
 Ume da simulira i ono što u praksi kvari turu:
 
@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, urlparse
 RESERVATION_PATH = "/vauceri/rezervacija-smestaja"
 
 #: Oblik u kom pravi portal sam upisuje datum kad se izabere iz kalendara: ``15.7.2026``.
-#: Namerno **ne** prima vodeću nulu — da bi test pao ako se u kodu vrati ``strftime``
+#: Namerno **ne** prima vodeću nulu - da bi test pao ako se u kodu vrati ``strftime``
 #: sa ``%d.%m.%Y``, koje daje ``15.07.2026``.
 _DATUM = re.compile(r"[1-9]\d?\.[1-9]\d?\.\d{4}")
 
@@ -44,7 +44,7 @@ mat-step-header[aria-selected="true"] { opacity: 1; }
 mat-date-range-input { display: flex; gap: 8px; align-items: center; }
 [hidden] { display: none; }
 /* Pravi portal skriva <input> čekboksa i crta svoj kvadratić. Zato Selenium ne sme da
-   klikne input nego omotač — ovde je isto, da test to zaista proveri. */
+   klikne input nego omotač - ovde je isto, da test to zaista proveri. */
 .cdk-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
                        clip: rect(0 0 0 0); white-space: nowrap; }
 .mat-checkbox-inner-container { display: inline-block; width: 18px; height: 18px;
@@ -53,7 +53,7 @@ mat-date-range-input { display: flex; gap: 8px; align-items: center; }
 .mat-checkbox-disabled .mat-checkbox-inner-container { border-color: #bbb; cursor: not-allowed; }
 """
 
-#: Zaglavlje aplikacije — postoji samo posle prijave, po njemu ``LOGGED_IN_MARKER``
+#: Zaglavlje aplikacije - postoji samo posle prijave, po njemu ``LOGGED_IN_MARKER``
 #: prepoznaje da sesija nije istekla.
 _ZAGLAVLJE = """
 <mat-toolbar class="mat-primary">
@@ -64,7 +64,7 @@ _ZAGLAVLJE = """
 
 
 def minimal_pdf(text: str = "Vaucer") -> bytes:
-    """Najmanji ispravan PDF — dovoljno da se fajl stvarno otvori posle preuzimanja."""
+    """Najmanji ispravan PDF - dovoljno da se fajl stvarno otvori posle preuzimanja."""
     content = f"BT /F1 24 Tf 40 120 Td ({text}) Tj ET".encode("latin-1", "replace")
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -214,7 +214,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._html(
             "Prijava",
             f"""
-            <h1>eTurista — prijava</h1>
+            <h1>eTurista - prijava</h1>
             <form method="post" action="/prijava">
               <label for="username">Korisničko ime</label>
               <input id="username" name="username" autocomplete="off">
@@ -243,7 +243,7 @@ class _Handler(BaseHTTPRequestHandler):
         Bitno je da se poklopi troje, jer je na tome palo dosta pretpostavki:
 
         * datumi su **jedan** ``mat-date-range-input`` sa dva ugnežđena polja,
-          ``datumSmestajaOd`` / ``datumSmestajaDo`` — ne dva odvojena ``datumOd``;
+          ``datumSmestajaOd`` / ``datumSmestajaDo`` - ne dva odvojena ``datumOd``;
         * kroz korake se ide dugmetom koje ima **samo ikonicu**, bez teksta;
         * „Odštampaj rezervaciju“ je onemogućeno dok se ne sačuva.
         """
@@ -314,7 +314,7 @@ class _Handler(BaseHTTPRequestHandler):
               </div>
             </form>
             <script>
-              // Kroz korake se ide klikom, a neaktivni koraci su sakriveni — isto kao
+              // Kroz korake se ide klikom, a neaktivni koraci su sakriveni - isto kao
               // mat-stepper. Zato se u kodu i mora kliknuti "dalje" pre nego što se
               // dođe do datuma: sakriveno polje Selenium ne prima.
               const koraci = [...document.querySelectorAll('.mat-horizontal-stepper-content')];
@@ -340,7 +340,7 @@ class _Handler(BaseHTTPRequestHandler):
               }});
 
               // Angular validira JMBG na izlazak iz polja; ovde radimo isto,
-              // da bi se greška videla pre slanja forme — kao na pravom portalu.
+              // da bi se greška videla pre slanja forme - kao na pravom portalu.
               const polje = document.querySelector('[formcontrolname="jmbg"]');
               polje.addEventListener('blur', async () => {{
                 const mesto = document.getElementById('jmbg-greska');
@@ -401,7 +401,7 @@ class _Handler(BaseHTTPRequestHandler):
             {_ZAGLAVLJE}
             <h1>Rezervacija</h1>
             <p class="ok">Gost je uspešno prijavljen.</p>
-            <p>{data.get('prezime', '')} {data.get('ime', '')} —
+            <p>{data.get('prezime', '')} {data.get('ime', '')} -
                {data.get('datumSmestajaOd', '')} do {data.get('datumSmestajaDo', '')}</p>
             <form method="get" action="/vaucer.pdf">
               <button type="submit" class="btn"><mat-icon>cloud_download</mat-icon>Odštampaj rezervaciju</button>

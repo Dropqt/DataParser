@@ -38,14 +38,14 @@ class LoginPage(BasePage):
             raise PortalError(
                 ErrorKind.LOGIN_FAILED,
                 f"Prijava na nalog '{account.label}' nije uspela"
-                + (f": {message}" if message else " — proveri korisničko ime i lozinku"),
+                + (f": {message}" if message else " - proveri korisničko ime i lozinku"),
             )
 
     def _wait_until_submitted(self) -> bool:
         """Prijava je prošla kad polje za korisničko ime više nije na stranici.
 
         Ovo je pouzdanije od traženja nekog elementa "posle prijave", jer ne zavisi od
-        toga kako izgleda početna strana naloga — a ona se menja između sezona.
+        toga kako izgleda početna strana naloga - a ona se menja između sezona.
         """
         try:
             WebDriverWait(self.driver, self.timeout).until(
@@ -56,7 +56,7 @@ class LoginPage(BasePage):
             return False
 
     def is_logged_in(self) -> bool:
-        """Provera da sesija nije istekla — koristi se između gostiju."""
+        """Provera da sesija nije istekla - koristi se između gostiju."""
         if S.LOGGED_IN_MARKER.is_ready:
             return self.is_present(S.LOGGED_IN_MARKER, timeout=2.0)
         # Dok marker nije potvrđen na živom portalu, oslanjamo se na to da forma za

@@ -27,7 +27,7 @@ def _run_gui() -> int:
 
 
 #: Koliko selektora staje u red izveštaja. XPath koji hvata tekst u oba pisma je dugačak
-#: nekoliko stotina znakova, pa bi bez skraćivanja pojeo ceo ekran — a ono što se iz
+#: nekoliko stotina znakova, pa bi bez skraćivanja pojeo ceo ekran - a ono što se iz
 #: izveštaja čita je da li je selektor našao element, ne kako tačno glasi.
 _SIRINA_SELEKTORA = 60
 
@@ -48,7 +48,7 @@ def _check_selectors(account_label: str | None) -> int:
     config = Config.load()
     accounts = load_accounts()
     if not accounts:
-        print("Nema podešenih naloga — napravi .env po uzoru na .env.example.")
+        print("Nema podešenih naloga - napravi .env po uzoru na .env.example.")
         return 2
 
     account = find_account(accounts, account_label) if account_label else accounts[0]

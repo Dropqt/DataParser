@@ -1,4 +1,4 @@
-"""Nalozi za portal — čitaju se iz .env, biraju se iz dropdown-a u aplikaciji."""
+"""Nalozi za portal - čitaju se iz .env, biraju se iz dropdown-a u aplikaciji."""
 
 from __future__ import annotations
 
@@ -19,14 +19,14 @@ class Account:
         return self.label
 
     def masked(self) -> str:
-        """Za log — nikad ne ispisujemo lozinku."""
+        """Za log - nikad ne ispisujemo lozinku."""
         return f"{self.label} ({self.username})"
 
 
 def load_accounts() -> list[Account]:
     """Učitaj popunjene naloge iz okruženja, redom kojim su definisani.
 
-    Nalog bez korisničkog imena ili lozinke se preskače — tako .env može da ima
+    Nalog bez korisničkog imena ili lozinke se preskače - tako .env može da ima
     pripremljena sva tri slota, a da radi i kad su popunjena samo dva.
     ``Config.load()`` mora biti pozvan pre ovoga da bi .env bio učitan.
     """

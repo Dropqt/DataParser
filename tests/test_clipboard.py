@@ -81,7 +81,7 @@ def test_paste_with_shuffled_header_columns():
 
 
 def test_paste_without_header_detects_by_content():
-    """Bez zaglavlja se podrazumeva ime pa prezime — kao u primer_gosti.xlsx."""
+    """Bez zaglavlja se podrazumeva ime pa prezime - kao u primer_gosti.xlsx."""
     text = f"Marko\tPetrović\t{A}\t05.10\nJovan\tIlić\t{B}\t06.10\n"
     result = parse_clipboard(text, YEAR)
     assert not result.mapping.from_header
@@ -166,7 +166,7 @@ def test_export_round_trip_has_status_columns():
     out = to_clipboard(guests)
     header, row = out.split("\n")
     assert header.split("\t") == list(EXPORT_HEADERS)
-    # Kolone se traže po nazivu, ne po broju — inače svaka nova kolona obori test
+    # Kolone se traže po nazivu, ne po broju - inače svaka nova kolona obori test
     # iz razloga koji nema veze sa onim što se proverava.
     cells = dict(zip(EXPORT_HEADERS, row.split("\t")))
     assert cells["Ime"] == "Marko"
@@ -221,7 +221,7 @@ def test_nonsense_email_marks_the_row():
     """Sa zaglavljem se zna da je kolona e-mail, pa se pokvarena vrednost prijavi.
 
     Bez zaglavlja se takva ćelija ni ne prepozna kao e-mail (nema @), pa se i ne
-    proverava — to je namerno: bolje ne prepoznati kolonu nego pogrešno je pripisati.
+    proverava - to je namerno: bolje ne prepoznati kolonu nego pogrešno je pripisati.
     """
     from eturista.errors import ErrorKind
 

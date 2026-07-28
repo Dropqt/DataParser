@@ -21,7 +21,7 @@ from .validation import (
 
 
 class Status(str, Enum):
-    """Stanje jednog gosta. Vrednost se pamti u bazi — ne menjaj postojeće stringove."""
+    """Stanje jednog gosta. Vrednost se pamti u bazi - ne menjaj postojeće stringove."""
 
     PENDING = "PENDING"
     RUNNING = "RUNNING"
@@ -68,7 +68,7 @@ class Guest:
     #: Broj noćenja kako je unet. Prazno znači DEFAULT_DAYS.
     days_raw: str = ""
     #: Adresa na koju idu vaučeri ovog gosta. Prazno znači podrazumevana adresa iz
-    #: podešavanja — većina gostiju ide na istu, pa se kuca samo za izuzetke.
+    #: podešavanja - većina gostiju ide na istu, pa se kuca samo za izuzetke.
     email_raw: str = ""
 
     # popunjava validate()
@@ -110,12 +110,12 @@ class Guest:
 
     @property
     def stay_display(self) -> str:
-        """Ceo raspon boravka — samo za prikaz u tabeli, ne ide u Excel."""
+        """Ceo raspon boravka - samo za prikaz u tabeli, ne ide u Excel."""
         return self.stay.format() if self.stay else ""
 
     @property
     def pdf_display(self) -> str:
-        """Samo naziv vaučera — cela putanja se ne vidi u koloni, a i ne treba u Excelu."""
+        """Samo naziv vaučera - cela putanja se ne vidi u koloni, a i ne treba u Excelu."""
         return Path(self.pdf_path).name if self.pdf_path else ""
 
     @property
@@ -164,14 +164,14 @@ class Guest:
         """Proveri sirova polja. Vrati True ako je gost spreman za prijavu.
 
         Poziva se pri lepljenju iz Excela i posle svake izmene u tabeli, pa red
-        pocrveni odmah — bez čekanja da browser uopšte krene.
+        pocrveni odmah - bez čekanja da browser uopšte krene.
         """
         self.jmbg_info = None
         self.stay = None
         self.email = ""
         self.note = ""
 
-        # Prazan red je tek dodat rukom i još se popunjava — ćutimo dok se ne ukuca
+        # Prazan red je tek dodat rukom i još se popunjava - ćutimo dok se ne ukuca
         # bar nešto, umesto da red pocrveni na sve četiri greške odjednom.
         if self.is_blank:
             if self.status is Status.ERROR:
@@ -270,7 +270,7 @@ class Guest:
 
 @dataclass
 class Batch:
-    """Jedna tura — grupa gostiju koja se prijavljuje kroz jedan nalog."""
+    """Jedna tura - grupa gostiju koja se prijavljuje kroz jedan nalog."""
 
     guests: list[Guest] = field(default_factory=list)
     account_label: str = ""

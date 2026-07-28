@@ -2,7 +2,7 @@
 
 Selenium blokira sekundama po koraku. Kad bi to radilo u GUI niti, aplikacija bi izgledala
 kao da je pukla i dugme "Zaustavi" ne bi radilo. Zato sve ide u ``QThread``, a nazad se
-javlja isključivo Qt signalima — oni se sami prebacuju u GUI nit.
+javlja isključivo Qt signalima - oni se sami prebacuju u GUI nit.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class UpdateCheckWorker(QThread):
     """Provera da li na GitHub-u ima novija verzija.
 
     Ide u zasebnu nit da mreža ne bi odlagala pojavljivanje prozora. Ako nema interneta
-    ili GitHub ne odgovori, tiho se odustaje — provera nikad ne sme da smeta radu.
+    ili GitHub ne odgovori, tiho se odustaje - provera nikad ne sme da smeta radu.
     """
 
     done = Signal(object)  # UpdateInfo ili None

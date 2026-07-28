@@ -88,7 +88,7 @@ def test_happy_path_registers_everyone(unlocked_selectors, portal, config, accou
     # portal je stvarno primio podatke, ne samo da je klik prošao
     assert len(state.saved) == 2
     assert state.saved[0]["jmbg"] == A
-    # Bez vodeće nule — tako portal sam upisuje datum izabran iz kalendara.
+    # Bez vodeće nule - tako portal sam upisuje datum izabran iz kalendara.
     assert state.saved[0]["datumSmestajaOd"] == "5.10.2026"
     assert state.saved[0]["datumSmestajaDo"] == "10.10.2026"
     # i prijava ugostitelja je čekirana na drugom koraku
@@ -188,7 +188,7 @@ def test_stop_event_halts_between_guests(unlocked_selectors, portal, config, acc
 
 
 def test_progress_is_saved_and_run_resumes(unlocked_selectors, portal, config, account):
-    """Prekid nasred ture pa ponovno pokretanje — bez duplikata na portalu."""
+    """Prekid nasred ture pa ponovno pokretanje - bez duplikata na portalu."""
     _, state = portal
     rows = (
         ("Petrović", "Marko", A, "05.10-10.10"),
@@ -223,7 +223,7 @@ def test_progress_is_saved_and_run_resumes(unlocked_selectors, portal, config, a
 
 
 def test_invalid_data_never_reaches_the_portal(unlocked_selectors, portal, config, account):
-    """Pogrešan JMBG se hvata lokalno — browser ni ne pokušava tog gosta."""
+    """Pogrešan JMBG se hvata lokalno - browser ni ne pokušava tog gosta."""
     _, state = portal
     bad = A[:12] + str((int(A[12]) + 1) % 10)
 
@@ -242,7 +242,7 @@ def test_invalid_data_never_reaches_the_portal(unlocked_selectors, portal, confi
 def test_locked_voucher_still_counts_guest_as_registered(portal, config, account):
     """Bez ``unlocked_selectors`` datumi i vaučer su zaključani.
 
-    Dok je taj deo portala zatvoren, gost sme da prođe bez PDF-a — ali ne sme
+    Dok je taj deo portala zatvoren, gost sme da prođe bez PDF-a - ali ne sme
     da se lažno prikaže kao uspešan ako sama rezervacija nije sačuvana.
     """
     batch = make_batch(("Petrović", "Marko", A, "05.10-10.10"))

@@ -1,7 +1,7 @@
 """Provera JMBG-a i parsiranje datuma boravka.
 
 Ovo je najvažniji deo za "evidenciju grešaka": većina pogrešnih JMBG-ova su tipfeleri,
-a tipfeler se skoro uvek vidi po kontrolnoj cifri — dakle uhvatimo ga ovde, pre nego što
+a tipfeler se skoro uvek vidi po kontrolnoj cifri - dakle uhvatimo ga ovde, pre nego što
 browser uopšte krene, i red pocrveni odmah pri lepljenju iz Excela.
 """
 
@@ -82,7 +82,7 @@ def clean_jmbg(raw: str) -> tuple[str, str]:
 
     Rešava dve stvari koje se u praksi stalno dešavaju:
 
-    * Excel čuva JMBG kao broj pa pojede vodeću nulu — gosti rođeni 1-9. u mesecu
+    * Excel čuva JMBG kao broj pa pojede vodeću nulu - gosti rođeni 1-9. u mesecu
       stignu sa 12 cifara. Ako dodavanje nule daje ispravan JMBG, popravljamo ćutke
       i beležimo napomenu.
     * Excel prikaže dugačak broj u naučnoj notaciji (``1,01991E+12``). Tu se cifre
@@ -95,7 +95,7 @@ def clean_jmbg(raw: str) -> tuple[str, str]:
     if re.search(r"[eE]\+?\d+", text):
         raise ValidationError(
             ErrorKind.JMBG_INVALID_LOCAL,
-            "JMBG je iz Excela stigao kao naučna notacija — formatiraj kolonu kao Tekst pa kopiraj ponovo",
+            "JMBG je iz Excela stigao kao naučna notacija - formatiraj kolonu kao Tekst pa kopiraj ponovo",
         )
 
     digits = re.sub(r"\D", "", text)
@@ -153,7 +153,7 @@ def validate_jmbg(raw: str) -> JmbgInfo:
     if expected != int(jmbg[12]):
         raise ValidationError(
             ErrorKind.JMBG_INVALID_LOCAL,
-            f"Pogrešna kontrolna cifra — poslednja treba da bude {expected}, a piše {jmbg[12]}",
+            f"Pogrešna kontrolna cifra - poslednja treba da bude {expected}, a piše {jmbg[12]}",
         )
 
     region = int(jmbg[7:9])
@@ -190,7 +190,7 @@ class Stay:
 
     arrival: date
     departure: date
-    #: Tekst kako je stigao iz Excela — čuvamo ga da bismo mogli da vratimo original.
+    #: Tekst kako je stigao iz Excela - čuvamo ga da bismo mogli da vratimo original.
     raw: str = ""
 
     @property
@@ -268,7 +268,7 @@ def parse_stay(raw: str, default_year: int | None = None) -> Stay:
     if best is None:
         raise ValidationError(
             ErrorKind.DATE_INVALID,
-            f"Ne mogu da pročitam datum iz {text!r} — očekujem npr. 05.10-10.10",
+            f"Ne mogu da pročitam datum iz {text!r} - očekujem npr. 05.10-10.10",
         )
 
     _, arrival, departure = best
@@ -313,7 +313,7 @@ def parse_arrival(raw: str, default_year: int | None = None) -> date:
     if arrival is None:
         raise ValidationError(
             ErrorKind.DATE_INVALID,
-            f"Ne mogu da pročitam datum dolaska iz {text!r} — očekujem npr. 05.10 ili 05.10.2026",
+            f"Ne mogu da pročitam datum dolaska iz {text!r} - očekujem npr. 05.10 ili 05.10.2026",
         )
     return arrival
 
@@ -321,7 +321,7 @@ def parse_arrival(raw: str, default_year: int | None = None) -> date:
 def parse_days(raw: str, default: int = DEFAULT_DAYS) -> int:
     """Pročitaj broj noćenja. Prazno polje znači ``default``.
 
-    Prima i "5", i "5 dana", i "5 noćenja" — u tabeli se lako omakne da se dopiše reč.
+    Prima i "5", i "5 dana", i "5 noćenja" - u tabeli se lako omakne da se dopiše reč.
     """
     text = (raw or "").strip()
     if not text:
@@ -363,7 +363,7 @@ def resolve_stay(
     """Odredi boravak iz kolona *Dolazak* i *Dana*.
 
     Ako u koloni sa datumom ipak stoji stari zapis sa opsegom (``05.10-10.10``), koristi
-    se on — tako stare liste iz prve ture rade bez prepravke, a kolona *Dana* se ignoriše.
+    se on - tako stare liste iz prve ture rade bez prepravke, a kolona *Dana* se ignoriše.
     """
     text = (date_raw or "").strip()
     if not text:
@@ -404,29 +404,29 @@ def validate_name(raw: str, field_label: str) -> str:
     if any(ch.isdigit() for ch in name):
         raise ValidationError(
             ErrorKind.MISSING_FIELD,
-            f"{field_label} sadrži cifre ({name!r}) — proveri da kolone nisu pomerene",
+            f"{field_label} sadrži cifre ({name!r}) - proveri da kolone nisu pomerene",
         )
     return name
 
 
 # ---------------------------------------------------------------------------
-# E-mail — po njemu se vaučeri razvrstavaju u foldere
+# E-mail - po njemu se vaučeri razvrstavaju u foldere
 # ---------------------------------------------------------------------------
 
 #: Namerno labava provera. Posao ovoga nije da presudi da li adresa postoji, nego da
-#: uhvati ono što očigledno nije e-mail — pomerenu kolonu, ime umesto adrese, dva
+#: uhvati ono što očigledno nije e-mail - pomerenu kolonu, ime umesto adrese, dva
 #: nalepljena maila u jednoj ćeliji.
 _EMAIL_RE = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[A-Za-z]{2,}$")
 
 #: Znaci koje Windows ne prima u imenu foldera. Na Linux-u smeta samo ``/``, ali naziv
-#: mora biti isti na oba sistema — inače isti spisak gostiju pravi različite foldere.
+#: mora biti isti na oba sistema - inače isti spisak gostiju pravi različite foldere.
 _LOSI_ZA_FOLDER = '<>:"/\\|?*'
 
 
 def validate_email(raw: str) -> str:
     """Vrati očišćen e-mail, ili prazan string ako ćelija nije popunjena.
 
-    Prazno **nije greška** — takav gost ide u podrazumevani folder.
+    Prazno **nije greška** - takav gost ide u podrazumevani folder.
     """
     email = (raw or "").strip().strip("<>").lower()
     if not email:
@@ -443,7 +443,7 @@ def email_folder(email: str) -> str:
     """Naziv foldera za datu adresu.
 
     Adresa se koristi kakva jeste, jer se folder gleda ljudskim okom i traži po imenu.
-    Menjaju se samo znaci koje Windows ne prima, i tačke na kraju — Windows ih tiho
+    Menjaju se samo znaci koje Windows ne prima, i tačke na kraju - Windows ih tiho
     odseca, pa bi folder posle imao drugo ime nego što kod misli.
     """
     naziv = "".join("_" if znak in _LOSI_ZA_FOLDER else znak for znak in email.strip())

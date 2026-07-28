@@ -91,7 +91,7 @@ def test_generated_file_exists_and_opens():
     openpyxl = pytest.importorskip("openpyxl")
     path = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
     if not path.exists():
-        pytest.skip("primer još nije generisan — pokreni alati/napravi_primer_excel.py")
+        pytest.skip("primer još nije generisan - pokreni alati/napravi_primer_excel.py")
 
     book = openpyxl.load_workbook(path)
     assert book.sheetnames == [*NALOZI, PRIMERI_SHEET, "Uputstvo"]
@@ -99,7 +99,7 @@ def test_generated_file_exists_and_opens():
     from eturista.models import EXPORT_HEADERS
 
     # Svaki radni list mora da ima isto zaglavlje kao izlaz iz aplikacije, da bi se
-    # rezultat ture zalepio nazad bez pomeranja kolona — svejedno na kom je listu.
+    # rezultat ture zalepio nazad bez pomeranja kolona - svejedno na kom je listu.
     for naziv in [*NALOZI, PRIMERI_SHEET]:
         sheet = book[naziv]
         headers = [sheet.cell(row=1, column=i).value for i in range(1, len(EXPORT_HEADERS) + 1)]
@@ -111,7 +111,7 @@ def test_work_sheets_are_empty_and_examples_are_separate():
     openpyxl = pytest.importorskip("openpyxl")
     path = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
     if not path.exists():
-        pytest.skip("primer još nije generisan — pokreni alati/napravi_primer_excel.py")
+        pytest.skip("primer još nije generisan - pokreni alati/napravi_primer_excel.py")
 
     book = openpyxl.load_workbook(path)
     for naziv in NALOZI:

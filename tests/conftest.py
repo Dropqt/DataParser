@@ -10,7 +10,7 @@ from eturista.validation import jmbg_check_digit  # noqa: E402
 
 
 def make_jmbg(first_twelve: str) -> str:
-    """Ispravan JMBG od prvih 12 cifara — koristi se svuda u testovima."""
+    """Ispravan JMBG od prvih 12 cifara - koristi se svuda u testovima."""
     return first_twelve + str(jmbg_check_digit(first_twelve))
 
 

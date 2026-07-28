@@ -25,7 +25,7 @@ _HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "email": ("email", "e_mail", "mail", "e_posta", "eposta", "adresa", "e_adresa"),
 }
 
-#: Kolone tipa "Ime i prezime" — jedna ćelija sa oba imena.
+#: Kolone tipa "Ime i prezime" - jedna ćelija sa oba imena.
 _FULL_NAME_HEADERS = ("ime_i_prezime", "imeiprezime", "gost", "putnik", "prezime_i_ime", "full_name")
 
 # --- prepoznavanje po sadržaju ----------------------------------------------
@@ -121,7 +121,7 @@ def _looks_like_date(cell: str) -> bool:
 
 
 def _looks_like_days(cell: str) -> bool:
-    """Mali ceo broj — kandidat za kolonu sa brojem noćenja."""
+    """Mali ceo broj - kandidat za kolonu sa brojem noćenja."""
     text = cell.strip()
     return text.isdigit() and 1 <= int(text) <= 120
 
@@ -131,7 +131,7 @@ def _looks_like_text(cell: str) -> bool:
 
 
 def _looks_like_email(cell: str) -> bool:
-    """Ćelija sa @ između dva neprazna dela — dovoljno da se kolona prepozna.
+    """Ćelija sa @ između dva neprazna dela - dovoljno da se kolona prepozna.
 
     Ovde se ne presuđuje da li je adresa ispravna (to radi ``validate_email``), samo
     da li kolona uopšte drži mejlove.
@@ -207,7 +207,7 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
     if width and max(email_score) > 0:
         mapping.email = email_score.index(max(email_score))
 
-    # Kolona sa malim brojevima je broj noćenja — osim ako je to samo redni broj
+    # Kolona sa malim brojevima je broj noćenja - osim ako je to samo redni broj
     # (1, 2, 3, …), što se lako pomeša ako se iz Excela kopira i kolona sa numeracijom.
     day_candidates = [
         i for i in range(width)
@@ -223,7 +223,7 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
         mapping.full_name = text_columns[0]
     elif len(text_columns) >= 2:
         first, second = text_columns[0], text_columns[1]
-        # Podrazumevani redosled je ime pa prezime — isti kao u primer_gosti.xlsx.
+        # Podrazumevani redosled je ime pa prezime - isti kao u primer_gosti.xlsx.
         mapping.given_name, mapping.surname = first, second
         # Ali stare liste su prezime pisale verzalom ("PETROVIĆ Marko"); ako je baš
         # prva kolona VERZAL a druga nije, redosled je obrnut.
@@ -249,7 +249,7 @@ def _split_full_name(cell: str) -> tuple[str, str]:
     """Razdvoji "Marko Petrović" na (ime, prezime).
 
     Podrazumeva se ime pa prezime. Izuzetak je stari zapis gde je prezime verzalom
-    ("PETROVIĆ Marko") — tu je prva reč prezime.
+    ("PETROVIĆ Marko") - tu je prva reč prezime.
     """
     parts = cell.split()
     if not parts:
@@ -289,23 +289,23 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
     result.mapping = mapping
 
     if not rows:
-        result.warnings.append("Nema redova sa podacima — zalepljeno je samo zaglavlje.")
+        result.warnings.append("Nema redova sa podacima - zalepljeno je samo zaglavlje.")
         return result
 
     if not mapping.is_usable:
         result.warnings.append(
-            "Ne mogu da prepoznam kolone. Očekujem prezime, ime, JMBG i datum — "
+            "Ne mogu da prepoznam kolone. Očekujem prezime, ime, JMBG i datum - "
             "proveri da si kopirao prave kolone iz Excela."
         )
         return result
 
     if mapping.date is None:
         result.warnings.append(
-            "Kolona sa datumom dolaska nije nađena — datume ćeš morati da uneseš ručno."
+            "Kolona sa datumom dolaska nije nađena - datume ćeš morati da uneseš ručno."
         )
     if mapping.days is None:
         result.warnings.append(
-            f"Kolona sa brojem dana nije nađena — svima je upisano {DEFAULT_DAYS} noćenja."
+            f"Kolona sa brojem dana nije nađena - svima je upisano {DEFAULT_DAYS} noćenja."
         )
 
     def cell(row: list[str], index: int | None) -> str:
@@ -332,7 +332,7 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
 
     if mapping.full_name is not None:
         result.warnings.append(
-            "Ime i prezime su bili u istoj koloni — prva reč je uzeta kao ime. "
+            "Ime i prezime su bili u istoj koloni - prva reč je uzeta kao ime. "
             "Proveri redove pre pokretanja."
         )
 

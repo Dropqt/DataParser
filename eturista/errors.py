@@ -24,7 +24,7 @@ class ErrorKind(str, Enum):
     JMBG_REJECTED_PORTAL = "JMBG_REJECTED_PORTAL"
     PORTAL_VALIDATION = "PORTAL_VALIDATION"
     DUPLICATE = "DUPLICATE"
-    #: Registracija za vaučere još nije otvorena — portal drži izbor prijave zaključan.
+    #: Registracija za vaučere još nije otvorena - portal drži izbor prijave zaključan.
     #: Ovo nije greška u podacima nego u trenutku: ista je za sve goste, pa prekida turu.
     RESERVATION_LOCKED = "RESERVATION_LOCKED"
 
@@ -66,7 +66,7 @@ _LABELS: dict[ErrorKind, str] = {
     ErrorKind.RESERVATION_LOCKED: "Portal još nije otvorio rezervacije",
     ErrorKind.LOGIN_FAILED: "Prijava na nalog nije uspela",
     ErrorKind.SESSION_EXPIRED: "Sesija je istekla",
-    ErrorKind.SELECTOR_NOT_FOUND: "Element nije nađen — portal je verovatno promenjen",
+    ErrorKind.SELECTOR_NOT_FOUND: "Element nije nađen - portal je verovatno promenjen",
     ErrorKind.TIMEOUT: "Portal nije odgovorio na vreme",
     ErrorKind.PDF_DOWNLOAD_FAILED: "Vaučer nije preuzet",
     ErrorKind.BROWSER_CRASHED: "Browser je pukao",
@@ -92,7 +92,7 @@ _RETRYABLE = frozenset({
 
 @dataclass(frozen=True)
 class GuestError:
-    """Greška vezana za jednog gosta — ono što ide u kolonu RAZLOG i u bazu."""
+    """Greška vezana za jednog gosta - ono što ide u kolonu RAZLOG i u bazu."""
 
     kind: ErrorKind
     message: str = ""

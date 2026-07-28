@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
         self.check_worker: SelectorCheckWorker | None = None
         self.update_worker: UpdateCheckWorker | None = None
 
-        self.setWindowTitle("eTurista — prijava gostiju")
+        self.setWindowTitle("eTurista - prijava gostiju")
         # Široko taman da sve kolone stanu bez vodoravnog klizača.
         self.resize(1360, 780)
 
@@ -83,15 +83,15 @@ class MainWindow(QMainWindow):
         self.email_box.textChanged.connect(lambda *_: self._update_status())
 
         self.add_button = QPushButton("＋  Dodaj red")
-        self.add_button.setToolTip("Ins — prazan red za ručni unos, bez Excela")
+        self.add_button.setToolTip("Ins - prazan red za ručni unos, bez Excela")
         self.add_button.clicked.connect(self._add_row)
 
         self.paste_button = QPushButton("Nalepi iz Excela")
-        self.paste_button.setToolTip("Ctrl+V — kopiraj grupu gostiju iz glavnog Excela")
+        self.paste_button.setToolTip("Ctrl+V - kopiraj grupu gostiju iz glavnog Excela")
         self.paste_button.clicked.connect(self._paste)
 
         self.copy_button = QPushButton("Kopiraj rezultat")
-        self.copy_button.setToolTip("Ctrl+C — vrati redove u glavni Excel, sa STATUS kolonom")
+        self.copy_button.setToolTip("Ctrl+C - vrati redove u glavni Excel, sa STATUS kolonom")
         self.copy_button.clicked.connect(self._copy)
 
         self.start_button = QPushButton("▶  Pokreni turu")
@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
         self.table.pasted.connect(self._on_pasted)
         self.table.copied.connect(lambda n: self._log(f"Kopirano {n} redova u clipboard."))
         self.table.guests_removed.connect(lambda n: self._update_status())
-        # Red se može dodati i tasterom u samoj tabeli, mimo dugmeta — i tad statusna
+        # Red se može dodati i tasterom u samoj tabeli, mimo dugmeta - i tad statusna
         # traka mora da se osveži.
         self.table.row_added.connect(lambda n: self._update_status())
         self.model.dataChanged.connect(lambda *_: self._update_status())
@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
                 f"Nema podešenih naloga.\n\nNapravi fajl:\n{path}\n\n"
                 "po uzoru na .env.example, pa restartuj program."
             )
-            self._log("Nema podešenih naloga — vidi .env.example", "WARN")
+            self._log("Nema podešenih naloga - vidi .env.example", "WARN")
             QMessageBox.information(self, "Nalozi nisu podešeni", message)
 
         locked = S.locked()
@@ -238,14 +238,14 @@ class MainWindow(QMainWindow):
                 self,
                 "Nije prepoznato",
                 "\n".join(result.warnings)
-                or "Clipboard je prazan — kopiraj redove iz Excela pa probaj ponovo.",
+                or "Clipboard je prazan - kopiraj redove iz Excela pa probaj ponovo.",
             )
             return
 
         bad = sum(1 for guest in result.guests if guest.status is Status.ERROR)
         self._log(
             f"Zalepljeno {len(result.guests)} gostiju ({result.mapping.describe()})"
-            + (f" — {bad} sa neispravnim podacima" if bad else "")
+            + (f" - {bad} sa neispravnim podacima" if bad else "")
         )
         self._update_status()
 
@@ -315,7 +315,7 @@ class MainWindow(QMainWindow):
 
         pending = self.batch.pending()
         if not pending:
-            # Prazan red je nepopunjen, ne pogrešan — o njemu se ne javlja kao o grešci.
+            # Prazan red je nepopunjen, ne pogrešan - o njemu se ne javlja kao o grešci.
             invalid = [
                 g for g in self.model.guests if g.selected and not g.is_ready and not g.is_blank
             ]
@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
         self.batch.account_label = account.label
         self.store.save_batch(self.batch)
 
-        self._log(f"— Tura #{self.batch.db_id} · nalog {account.label} · {len(pending)} gostiju —")
+        self._log(f"- Tura #{self.batch.db_id} · nalog {account.label} · {len(pending)} gostiju -")
         self._log(self._describe_voucher_dirs(pending, default_email))
         self._set_running(True)
         self.progress.setRange(0, len(pending))
@@ -411,7 +411,7 @@ class MainWindow(QMainWindow):
 
         if result.errors:
             details = "\n".join(
-                f"red {guest.row}: {guest.full_name} — {error.text}"
+                f"red {guest.row}: {guest.full_name} - {error.text}"
                 for guest, error in result.errors
             )
             box = QMessageBox(QMessageBox.Warning, "Tura završena", result.summary(), parent=self)
@@ -462,7 +462,7 @@ class MainWindow(QMainWindow):
             return
         found = [c for c in checks if c.found]
         missing = [c for c in checks if not c.found]
-        lines = [f"✓ {c.locator.description} — {c.matched_by}" for c in found]
+        lines = [f"✓ {c.locator.description} - {c.matched_by}" for c in found]
         lines += [f"✗ {c.locator.description} ({c.locator.name})" for c in missing]
 
         box = QMessageBox(
@@ -513,7 +513,7 @@ class MainWindow(QMainWindow):
             if not quiet:
                 QMessageBox.information(
                     self, "Provera verzije",
-                    "Ne mogu da proverim — nema veze sa GitHub-om.",
+                    "Ne mogu da proverim - nema veze sa GitHub-om.",
                 )
             return
 
@@ -536,11 +536,11 @@ class MainWindow(QMainWindow):
             self,
             "Kako se koristi",
             "1. U glavnom Excelu označi grupu gostiju (prezime, ime, JMBG, datum) i Ctrl+C.\n"
-            "2. Ovde Ctrl+V — redovi se pojave u tabeli. Crveni imaju neispravan JMBG ili datum;\n"
+            "2. Ovde Ctrl+V - redovi se pojave u tabeli. Crveni imaju neispravan JMBG ili datum;\n"
             "   ispravi ih dvoklikom na ćeliju.\n"
             "3. Izaberi nalog i klikni Pokreni turu.\n"
             "4. Zeleno = prijavljen, crveno = pao. Prelaskom miša preko reda vidi se razlog.\n"
-            "5. Kad se završi, Ctrl+C i zalepi nazad u glavni Excel — dobijaš i STATUS kolonu.\n\n"
+            "5. Kad se završi, Ctrl+C i zalepi nazad u glavni Excel - dobijaš i STATUS kolonu.\n\n"
             f"Vaučeri se snimaju u: {self.config.pdf_dir}",
         )
 
@@ -593,7 +593,7 @@ class _BatchPicker(QDialog):
         self.list = QListWidget()
         for row in rows:
             label = (
-                f"#{row['id']}  {row['created_at']}  ·  nalog: {row['account_label'] or '—'}  ·  "
+                f"#{row['id']}  {row['created_at']}  ·  nalog: {row['account_label'] or '-'}  ·  "
                 f"{row['ukupno']} gostiju, {row['uspesno'] or 0} prijavljeno, {row['gresaka'] or 0} grešaka"
             )
             item = QListWidgetItem(label)

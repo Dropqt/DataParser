@@ -1,4 +1,4 @@
-"""Provera nove verzije — bez mreže, sa lažnim odgovorima GitHub-a."""
+"""Provera nove verzije - bez mreže, sa lažnim odgovorima GitHub-a."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def test_unknown_local_revision_skips_check(monkeypatch):
 
 
 def test_falls_back_when_compare_fails(monkeypatch):
-    """Ako lokalni commit nije gurnut, compare vraća 404 — padamo na poređenje sha."""
+    """Ako lokalni commit nije gurnut, compare vraća 404 - padamo na poređenje sha."""
     calls = []
 
     def _urlopen(request, timeout=None):

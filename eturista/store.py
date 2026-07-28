@@ -2,10 +2,10 @@
 
 Baza služi dvema stvarima:
 
-* **Nastavak posle prekida** — ako program pukne ili se zatvori nasred ture od 30 gostiju,
+* **Nastavak posle prekida** - ako program pukne ili se zatvori nasred ture od 30 gostiju,
   pri sledećem pokretanju se učita ista tura i nastavlja se od prvog neobrađenog. Bez ovoga
   bi ponovno pokretanje pravilo duplikate na portalu.
-* **Evidencija grešaka** — ko je pao, zašto, koji je screenshot snimljen i koliko je puta
+* **Evidencija grešaka** - ko je pao, zašto, koji je screenshot snimljen i koliko je puta
   pokušano. To je ono što se posle vraća u glavni Excel.
 """
 
@@ -69,7 +69,7 @@ def _locked(method):
 
     GUI čita iz glavne niti dok radna nit upisuje rezultate, a paralelni režim će voziti
     više tura odjednom. Jedna veza sa ``check_same_thread=False`` to trpi samo ako se
-    pozivi ne preklapaju — otud brava.
+    pozivi ne preklapaju - otud brava.
     """
 
     @functools.wraps(method)
@@ -100,7 +100,7 @@ class Store:
         """Dodaj kolone koje fale u bazi napravljenoj starijom verzijom programa.
 
         ``CREATE TABLE IF NOT EXISTS`` ne dira postojeću tabelu, pa se nove kolone
-        moraju dodati ručno — inače bi stara baza rušila program posle ažuriranja.
+        moraju dodati ručno - inače bi stara baza rušila program posle ažuriranja.
         """
         existing = {
             row["name"]
@@ -235,7 +235,7 @@ class Store:
 
     @_locked
     def list_batches(self, limit: int = 50) -> list[sqlite3.Row]:
-        """Pregled tura sa brojem gostiju i grešaka — za meni 'Otvori raniju turu'."""
+        """Pregled tura sa brojem gostiju i grešaka - za meni 'Otvori raniju turu'."""
         return self._conn.execute(
             """
             SELECT b.id, b.created_at, b.account_label,
@@ -305,7 +305,7 @@ def _row_to_guest(row: sqlite3.Row, default_year: int | None) -> Guest:
         selected=bool(row["selected"]),
         db_id=int(row["id"]),
     )
-    # Ponovo validiramo umesto da čuvamo izvedena polja — tako popravka pravila
+    # Ponovo validiramo umesto da čuvamo izvedena polja - tako popravka pravila
     # validacije odmah važi i za ranije snimljene ture.
     data_is_valid = guest.validate(default_year)
     stored = _status(row["status"])
@@ -326,7 +326,7 @@ def _row_to_guest(row: sqlite3.Row, default_year: int | None) -> Guest:
         # Program je pukao usred ovog gosta. Ne znamo da li je prijava prošla na portalu,
         # pa ga vraćamo u red ali sa jasnom napomenom da se proveri pre ponavljanja.
         guest.status = Status.PENDING
-        guest.note = "prekinuto pri prethodnom pokretanju — proveri da nije već prijavljen"
+        guest.note = "prekinuto pri prethodnom pokretanju - proveri da nije već prijavljen"
 
     if row["updated_at"]:
         try:

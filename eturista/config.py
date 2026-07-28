@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 
 def app_dir() -> Path:
-    """Folder pored aplikacije — tu žive .env, baza, vaučeri i screenshot-ovi.
+    """Folder pored aplikacije - tu žive .env, baza, vaučeri i screenshot-ovi.
 
     Kad je spakovano PyInstaller-om ``__file__`` pokazuje u privremeni raspakovani
     folder, pa se mora gledati gde stoji sam .exe.
@@ -63,7 +63,7 @@ class Config:
 
 
 def env_leak_warning() -> str | None:
-    """Vrati upozorenje ako je .env ušao u git — repo je javan, pa ovo košta ništa.
+    """Vrati upozorenje ako je .env ušao u git - repo je javan, pa ovo košta ništa.
 
     Vraća None kad je sve u redu (nema .env, nije git repo, ili .env nije praćen).
     """
