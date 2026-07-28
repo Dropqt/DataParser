@@ -3,6 +3,10 @@
 Excel (i LibreOffice) stavljaju u clipboard obične redove razdvojene tabovima, pa je
 Ctrl+V ovde samo parsiranje TSV-a. Posao je u tome da se pogodi *koja kolona je šta*,
 jer glavni Excel ne mora da ima kolone istim redom kao aplikacija.
+
+Isto Ctrl+V radi i za tekst iz Worda. Wordova tabela stiže kao TSV, kao i iz Excela,
+ali spisak gostiju ume da bude i običan pasus ili numerisana lista - tu nema kolona,
+pa se svaka reč prepoznaje po obliku (:func:`_read_free_text_row`).
 """
 
 from __future__ import annotations
@@ -46,13 +50,20 @@ class ColumnMapping:
     email: int | None = None
     full_name: int | None = None
     from_header: bool = False
+    #: Zalepljen je tekst bez kolona (Word), pa se ne gleda pozicija nego oblik reči.
+    free_text: bool = False
 
     @property
     def is_usable(self) -> bool:
+        if self.free_text:
+            return True
         has_name = self.full_name is not None or (self.surname is not None and self.given_name is not None)
         return has_name and self.jmbg is not None
 
     def describe(self) -> str:
+        if self.free_text:
+            return "slobodan tekst iz Worda - polja prepoznata po obliku, ne po koloni"
+
         parts = []
         if self.full_name is not None:
             parts.append(f"ime+prezime→{self.full_name + 1}")
@@ -89,10 +100,40 @@ class PasteResult:
 # parsiranje
 # ---------------------------------------------------------------------------
 
+#: Nevidljivi znaci koje lepljenje iz Worda donese u tekst. Tvrdi razmak mora da postane
+#: običan (inače ``strip()`` i ``split()`` ne rade), a razmak nulte širine da nestane -
+#: on se ne vidi ni u ćeliji ni u poruci o grešci, pa bi ispao neobjašnjiv problem.
+_INVISIBLE = str.maketrans({
+    "\u00a0": " ",   # tvrdi razmak (Word ga stavlja sam)
+    "\u202f": " ",   # uski tvrdi razmak
+    "\u200b": "",    # razmak nulte širine
+    "\ufeff": "",    # BOM, stigne sa kopiranjem sa sajta
+})
+
+#: Meki prelom reda: Shift+Enter u Wordu (\v), prelom stranice i Unicode prelomi.
+_SOFT_BREAK = re.compile("[\v\f\u2028\u2029]+")
+
+
+def _lines(text: str) -> list[str]:
+    """Clipboard tekst u redove, sa počišćenim nevidljivim znacima iz Worda.
+
+    Meki prelom se u tabeli tretira drugačije nego u pasusu: u redu sa tabovima on je
+    prelom *unutar ćelije* (drugi red adrese), a u pasusu je novi gost.
+    """
+    normalized = (text or "").translate(_INVISIBLE).replace("\r\n", "\n").replace("\r", "\n")
+    lines: list[str] = []
+    for line in normalized.split("\n"):
+        if "\t" in line:
+            lines.append(_SOFT_BREAK.sub(" ", line))
+        else:
+            lines.extend(_SOFT_BREAK.split(line))
+    return lines
+
+
 def split_rows(text: str) -> list[list[str]]:
     """Razbij clipboard tekst na redove i ćelije."""
     rows: list[list[str]] = []
-    for line in (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+    for line in _lines(text):
         if not line.strip():
             continue
         cells = [_unquote(cell) for cell in line.split("\t")]
@@ -209,9 +250,13 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
 
     # Kolona sa malim brojevima je broj noćenja - osim ako je to samo redni broj
     # (1, 2, 3, …), što se lako pomeša ako se iz Excela kopira i kolona sa numeracijom.
+    # Numeracija ide *ispred* gosta, a broj noćenja iza JMBG-a, pa se sve levo od
+    # JMBG-a odbacuje: kod dva zalepljena reda "1, 2" se ne razlikuje od "1 noć, 2 noći".
     day_candidates = [
         i for i in range(width)
-        if days_score[i] > 0 and not _is_running_index(columns[i])
+        if days_score[i] > 0
+        and not _is_running_index(columns[i])
+        and (mapping.jmbg is None or i > mapping.jmbg)
     ]
     if day_candidates:
         mapping.days = max(day_candidates, key=lambda i: days_score[i])
@@ -245,6 +290,102 @@ def _all_caps(upper_score: list[int], text_score: list[int], column: int) -> boo
     return text_score[column] > 0 and upper_score[column] == text_score[column]
 
 
+# ---------------------------------------------------------------------------
+# slobodan tekst - spisak iz Worda koji nije tabela
+# ---------------------------------------------------------------------------
+
+#: Numeracija ili nabrajanje na početku reda: "1.", "2)", "- ", "• ". Nije podatak.
+_LIST_MARKER = re.compile("^\\s*(?:\\d{1,3}\\s*[.)]\\s+|[-*\u2022\u00b7\u2013\u2014]\\s+)")
+
+#: Reč koja u Wordu samo kaže šta sledi ("JMBG: 010…", "dolazak 05.10"). Da nema ovog
+#: spiska, takve reči bi završile u imenu gosta.
+_LABELS = frozenset({
+    "jmbg", "jmb", "mb", "maticni", "maticni_broj", "broj", "br", "licni_broj",
+    "ime", "prezime", "ime_i_prezime", "gost", "putnik", "gospodin", "gospodja",
+    "dolazak", "datum", "datum_dolaska", "termin", "boravak", "period", "od", "do",
+    "email", "e_mail", "mail", "e_posta", "eposta", "adresa", "e_adresa",
+    "tel", "telefon", "kontakt",
+})
+
+#: Reč uz koju stoji broj noćenja ("5 dana", "7 noćenja").
+_DAYS_WORDS = frozenset({"dana", "dan", "noc", "noci", "nocenja", "nocenje", "days", "nights"})
+
+#: Reč sastavljena samo od cifara i razdvajača - kandidat za JMBG. Traži se ovako, a ne
+#: preko ``_looks_like_jmbg``, jer bi "010199-071012-1" tamo ispalo kao datum.
+_DIGIT_TOKEN = re.compile("^[\\d\\s.\u2013\u2014/-]+$")
+
+
+def _tokens(line: str) -> list[str]:
+    """Red slobodnog teksta na reči, bez numeracije liste i bez zareza."""
+    return [word for word in re.split(r"[\s,;|]+", _LIST_MARKER.sub("", line.strip())) if word]
+
+
+def _read_free_text_row(line: str) -> dict[str, str]:
+    """Izvuci polja gosta iz reda koji nije tabela nego rečenica.
+
+    Word ume da bude bilo šta - numerisana lista, nabrajanje sa crticama, red sa
+    labelama - pa se ne gleda pozicija reči nego njen oblik: JMBG po broju cifara,
+    datum po tački, mejl po @, broj noćenja po tome što stoji posle datuma, a sve
+    što je ostalo od slova je ime i prezime.
+    """
+    jmbg = email = ""
+    dates: list[str] = []
+    names: list[str] = []
+    #: (redni broj reči, broj) - po položaju se posle presuđuje šta je numeracija
+    #: reda (pre imena), a šta broj noćenja (posle datuma).
+    numbers: list[tuple[int, str]] = []
+    date_at: list[int] = []
+    days_at: list[int] = []
+
+    for index, word in enumerate(_tokens(line)):
+        cell = word.strip(":.,;()[]<>\"'")
+        if not cell:
+            continue
+        if not email and _looks_like_email(cell):
+            email = cell
+        elif not jmbg and _DIGIT_TOKEN.match(cell) and len(re.sub(r"\D", "", cell)) in (12, 13):
+            jmbg = cell
+        elif _DATEISH.search(cell):
+            dates.append(cell)
+            date_at.append(index)
+        elif _looks_like_days(cell):
+            numbers.append((index, cell))
+        elif _normalize_header(cell) in _DAYS_WORDS:
+            days_at.append(index)
+        elif _normalize_header(cell) in _LABELS:
+            continue
+        elif _looks_like_text(cell):
+            names.append(cell)
+
+    given_name, surname = _split_full_name(" ".join(names))
+    return {
+        "given_name": given_name,
+        "surname": surname,
+        "jmbg": jmbg,
+        # Dva datuma u redu su stari zapis "od-do"; resolve_stay ga i dalje čita.
+        "date": "-".join(dates[:2]) if len(dates) > 1 else (dates[0] if dates else ""),
+        "days": _pick_days(numbers, date_at, days_at),
+        "email": email,
+    }
+
+
+def _pick_days(numbers: list[tuple[int, str]], date_at: list[int], days_at: list[int]) -> str:
+    """Koji goli broj u redu je broj noćenja.
+
+    Broj uz reč "dana" je siguran. Inače je to broj *posle* datuma; broj pre imena je
+    skoro uvek numeracija reda ("3  Marko Petrović …"), pa se ne dira.
+    """
+    for position in days_at:
+        for index, value in numbers:
+            if abs(index - position) == 1:
+                return value
+    if date_at:
+        for index, value in numbers:
+            if index > date_at[-1]:
+                return value
+    return ""
+
+
 def _split_full_name(cell: str) -> tuple[str, str]:
     """Razdvoji "Marko Petrović" na (ime, prezime).
 
@@ -261,13 +402,56 @@ def _split_full_name(cell: str) -> tuple[str, str]:
     return parts[0], " ".join(parts[1:])
 
 
+def _fill_from_free_text(
+    rows: list[list[str]], result: PasteResult, default_year: int | None, start_row: int
+) -> bool:
+    """Pokušaj da pročitaš goste iz teksta bez kolona. Vrati True ako je uspelo.
+
+    Uslov je da bar jedan red ima JMBG - bez toga je zalepljeno nešto što nije spisak
+    gostiju (naslov, pasus teksta), pa je poštenije reći "ne prepoznajem" nego napraviti
+    goste od proizvoljnih reči.
+    """
+    read = [_read_free_text_row(" ".join(cells)) for cells in rows]
+    if not any(item["jmbg"] for item in read):
+        return False
+
+    skipped = 0
+    for item in read:
+        # Red bez JMBG-a i bez datuma je naslov ili prazna priča između gostiju.
+        if not item["jmbg"] and not (item["given_name"] and item["date"]):
+            skipped += 1
+            continue
+        guest = Guest(
+            row=start_row + len(result.guests),
+            surname_raw=item["surname"],
+            given_name_raw=item["given_name"],
+            jmbg_raw=item["jmbg"],
+            arrival_raw=item["date"],
+            days_raw=item["days"],
+            email_raw=item["email"],
+        )
+        guest.validate(default_year)
+        result.guests.append(guest)
+
+    result.mapping = ColumnMapping(free_text=True)
+    result.skipped_rows += skipped
+    result.warnings.append(
+        "Zalepljen je tekst bez kolona (Word), pa su ime, JMBG i datum prepoznati po "
+        "obliku. Proveri redove pre pokretanja."
+    )
+    if skipped == 1:
+        result.warnings.append("1 red nije ličio na gosta i preskočen je.")
+    elif skipped:
+        result.warnings.append(f"{skipped} redova nije ličilo na gosta i preskočeni su.")
+    return True
+
+
 def parse_clipboard(text: str, default_year: int | None = None, start_row: int = 1) -> PasteResult:
     """Pretvori clipboard tekst u listu gostiju, sa već izvršenom validacijom."""
     result = PasteResult()
     # Prazne redove izbacuje split_rows, pa ih ovde prebrojimo da bi korisnik video
     # da broj zalepljenih redova nije isti kao broj gostiju.
-    normalized = (text or "").replace("\r\n", "\n").replace("\r", "\n")
-    result.skipped_rows = sum(1 for line in normalized.split("\n") if line and not line.strip())
+    result.skipped_rows = sum(1 for line in _lines(text) if line and not line.strip())
 
     rows = split_rows(text)
     if not rows:
@@ -293,6 +477,11 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
         return result
 
     if not mapping.is_usable:
+        # Nema upotrebljivih kolona - ali to ne mora da znači da nema podataka. Spisak
+        # iz Worda često nije tabela nego pasus ili numerisana lista, pa se pre odustajanja
+        # svaki red pročita kao rečenica.
+        if _fill_from_free_text(rows, result, default_year, start_row):
+            return result
         result.warnings.append(
             "Ne mogu da prepoznam kolone. Očekujem prezime, ime, JMBG i datum - "
             "proveri da si kopirao prave kolone iz Excela."

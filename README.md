@@ -46,6 +46,27 @@ pokretanju (Selenium Manager) - prvi put ume da potraje tridesetak sekundi.
 5. Zeleno = prijavljen, crveno = pao, žuto = u toku. Prelaz mišem preko reda pokazuje razlog.
 6. Kad se završi, `Ctrl+C` i zalepi nazad u glavni Excel.
 
+### Lepljenje iz Worda
+
+`Ctrl+V` prima i tekst iz Worda, ne samo iz Excela. Wordova tabela stiže kao isti TSV kao
+iz Excela, ali spisak gostiju često nije tabela - i to prolazi:
+
+```
+1. Marko Petrović 0101990710121 05.10.2026
+- Jovan Ilić, 1503988710011, 06.10.2026, 7 dana
+Ana Anić - JMBG 0101017505005 - dolazak 07.10.2026
+```
+
+Kad kolone ne mogu da se prepoznaju, svaki red se čita kao rečenica: JMBG po broju cifara,
+datum po tački, e-mail po `@`, broj noćenja po tome što stoji posle datuma, a ono što je
+ostalo od slova je ime i prezime (`clipboard._read_free_text_row`). Numeracija (`1.`, `-`)
+i reči tipa `JMBG:` ili `dolazak` se izbacuju, a redovi koji ne liče na gosta (naslov,
+pozdrav) se preskaču i prijave u logu. Ako nijedan red nema JMBG, aplikacija kaže da ne
+prepoznaje - bolje nego praviti goste od proizvoljnih reči.
+
+Usput se čiste i Wordovi nevidljivi znaci (tvrdi razmak, razmak nulte širine) i meki
+prelom reda (`Shift+Enter`), koji je u pasusu novi gost a u tabeli prelom unutar ćelije.
+
 ### Datum boravka
 
 Umesto opsega `05.10-10.10` unosi se **datum dolaska** i **broj dana**. Prazna kolona `Dana`
@@ -64,6 +85,33 @@ Radni listovi su prazni i spremni za unos; izmišljeni gosti stoje zasebno na li
 **Primeri**, gde se vidi kako radi provera JMBG-a (poslednja dva su namerno pokvarena).
 
 Zaglavlje je isto na svakom listu, pa je svejedno sa kog se kopira i na koji se lepi nazad.
+
+### JMBG sa vodećom nulom i lepljenje iz Worda
+
+Cela `JMBG` kolona je formatirana kao **Tekst**, ne samo redovi u kojima ima formula -
+inače gost upisan ispod poslednjeg formuliranog reda ostane bez vodeće nule.
+
+Ako se nula ipak izgubi (lepljenje nosi svoj format i pregazi kolonu), kolona
+`PROVERA JMBG` požuti i napiše šta treba da stoji: `⚠ Fali vodeća nula - upiši 0…`.
+Unos i tada prolazi, jer aplikacija tu nulu vraća sama (`validation.clean_jmbg`), ali se
+u tabeli odmah vidi šta popraviti. Provera pre računanja izbaci i ono što lepljenje iz
+Worda donese - tvrde razmake, en/em crte, tačke - pa `010199-071012-1` prolazi kao ✓.
+
+Iz Worda se lepi **bez formata** (`Ctrl+Shift+V`; LibreOffice: *Neformatirani tekst*),
+inače dolaze Wordov font i okviri i format kolone. Najkraće je preskočiti Excel i lepiti
+iz Worda pravo u aplikaciju - videti *Lepljenje iz Worda* niže.
+
+### Prebacivanje gosta na drugi list
+
+Gost upisan kod pogrešnog naloga se seli **kopiranjem kolona A-F** (`Ctrl+C`), pa se
+original obriše. Kolone `G`-`P` se ne prenose - one su formule i na svakom listu su iste.
+
+Isecanje (`Ctrl+X`) je ranije razbijalo proveru: Excel bi formulama sa starog lista
+prepisao reference na novi list, pa bi provera prvo počela da čita tuđe goste, a čim se
+ti redovi obrišu - `#REF!`. Zato u generisanim formulama više nema nijedne adrese ćelije;
+sve ide preko `INDEX($C:$C;ROW())`, što znači "moja kolona, moj red" i preživljava i
+seljenje i brisanje redova (`alati/napravi_primer_excel.py`, funkcija `ref`). Test
+`test_formulas_never_point_at_a_single_cell` čuva to svojstvo.
 
 ### Vaučeri po folderima
 

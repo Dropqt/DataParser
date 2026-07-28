@@ -233,3 +233,77 @@ def test_nonsense_email_marks_the_row():
     guest = result.guests[0]
     assert guest.status is Status.ERROR
     assert guest.error.kind is ErrorKind.EMAIL_INVALID
+
+
+# ---------------------------------------------------------------------------
+# lepljenje iz Worda - tekst bez kolona
+# ---------------------------------------------------------------------------
+
+def test_word_paragraph_is_read_without_columns():
+    """Spisak iz Worda često nije tabela nego pasus - polja se prepoznaju po obliku."""
+    text = f"Marko Petrović {A} 05.10.2026\nJovan Ilić {B} 06.10.2026 7\n"
+    result = parse_clipboard(text, YEAR)
+
+    assert result.mapping.free_text
+    assert [(g.given_name, g.surname) for g in result.guests] == [
+        ("Marko", "Petrović"), ("Jovan", "Ilić"),
+    ]
+    assert [g.jmbg for g in result.guests] == [A, B]
+    # Goli broj posle datuma je broj noćenja; gde ga nema važi podrazumevanih 5.
+    assert [g.stay.nights for g in result.guests] == [5, 7]
+
+
+def test_word_numbering_and_bullets_are_not_data():
+    text = f"1. Marko Petrović {A} 05.10.2026\n- Jovan Ilić, {B}, 06.10.2026\n"
+    result = parse_clipboard(text, YEAR)
+
+    assert len(result.guests) == 2
+    assert all(g.is_ready for g in result.guests)
+    # Redni broj "1." ne sme da postane broj noćenja ni deo imena.
+    assert result.guests[0].given_name == "Marko"
+    assert result.guests[0].stay.nights == 5
+
+
+def test_word_labels_stay_out_of_the_name():
+    text = f"Marko Petrović - JMBG {A} - dolazak 05.10.2026 - 5 dana\n"
+    guest = parse_clipboard(text, YEAR).guests[0]
+
+    assert (guest.given_name, guest.surname) == ("Marko", "Petrović")
+    assert guest.jmbg == A
+    assert guest.stay.nights == 5
+
+
+def test_word_soft_line_break_starts_a_new_guest():
+    """Shift+Enter u Wordu daje \\v umesto novog reda - i to je novi gost."""
+    text = f"Marko Petrović {A} 05.10.2026\vJovan Ilić {B} 06.10.2026"
+    assert len(parse_clipboard(text, YEAR).guests) == 2
+
+
+def test_nonbreaking_space_does_not_break_the_jmbg():
+    """Word ume da ubaci tvrdi razmak; JMBG mora da prođe kao da ga nema."""
+    text = f"Marko\tPetrović\t{A[:4]}\u00a0{A[4:]}\t05.10.2026\n"
+    guest = parse_clipboard(text, YEAR).guests[0]
+    assert guest.jmbg == A
+    assert guest.is_ready
+
+
+def test_free_text_without_any_jmbg_is_refused():
+    """Bez ijednog JMBG-a zalepljeno nije spisak gostiju - bolje priznati nego izmišljati."""
+    result = parse_clipboard("Poštovani, u prilogu šaljem spisak.\nPozdrav, Danica\n", YEAR)
+    assert not result.guests
+    assert any("Ne mogu da prepoznam" in w for w in result.warnings)
+
+
+def test_free_text_skips_lines_that_are_not_guests():
+    text = f"Spisak gostiju za oktobar\nMarko Petrović {A} 05.10.2026\n"
+    result = parse_clipboard(text, YEAR)
+    assert len(result.guests) == 1
+    assert any("nije ličio" in w for w in result.warnings)
+
+
+def test_leading_numbering_column_is_not_days_even_for_two_rows():
+    """Numeracija stoji ispred gosta, broj noćenja iza JMBG-a - po tome se razlikuju."""
+    text = f"1\tMarko\tPetrović\t{A}\t05.10\n2\tJovan\tIlić\t{B}\t06.10\n"
+    result = parse_clipboard(text, YEAR)
+    assert result.mapping.days is None
+    assert all(g.stay.nights == 5 for g in result.guests)

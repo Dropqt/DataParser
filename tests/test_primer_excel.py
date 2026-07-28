@@ -106,6 +106,56 @@ def test_generated_file_exists_and_opens():
         assert tuple(headers) == EXPORT_HEADERS, f"list {naziv}"
 
 
+def test_jmbg_column_is_text_for_the_whole_column():
+    """Format mora da stoji na koloni, ne samo na redovima koji imaju formule.
+
+    Ako stoji samo na ćelijama, prvi gost ispod poslednjeg formuliranog reda upada u
+    ćeliju bez formata i Excel mu odmah pojede vodeću nulu.
+    """
+    openpyxl = pytest.importorskip("openpyxl")
+    path = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
+    if not path.exists():
+        pytest.skip("primer još nije generisan - pokreni alati/napravi_primer_excel.py")
+
+    from alati.napravi_primer_excel import col
+
+    book = openpyxl.load_workbook(path)
+    jmbg_col = col("JMBG")
+    for naziv in [*NALOZI, PRIMERI_SHEET]:
+        assert book[naziv].column_dimensions[jmbg_col].number_format == "@", f"list {naziv}"
+
+
+def test_formulas_never_point_at_a_single_cell():
+    """Sve reference idu preko INDEX($X:$X;ROW()) - videti ``napravi_primer_excel.ref``.
+
+    Obična referenca (``C2``) preživi kopiranje, ali ne i isecanje: kad se gost prebaci
+    na list drugog naloga sa Ctrl+X, provera na starom listu počne da čita novi list, a
+    čim se ti redovi obrišu, pukne u ``#REF!``. Zato u formulama ne sme da ostane nijedna
+    adresa ćelije.
+    """
+    import re
+
+    openpyxl = pytest.importorskip("openpyxl")
+    path = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
+    if not path.exists():
+        pytest.skip("primer još nije generisan - pokreni alati/napravi_primer_excel.py")
+
+    adresa = re.compile(r"\$?[A-Z]{1,2}\$?\d+")
+    book = openpyxl.load_workbook(path)
+    for naziv in [*NALOZI, PRIMERI_SHEET]:
+        sheet = book[naziv]
+        for row in sheet.iter_rows(min_row=2, max_row=6):
+            for cell in row:
+                if isinstance(cell.value, str) and cell.value.startswith("="):
+                    assert not adresa.search(cell.value), f"{naziv}!{cell.coordinate}"
+        # I bojenje: pravilo vezano za $J2 se pri seljenju pokvari isto kao formula,
+        # samo što se to ne vidi - red prosto prestane da se boji.
+        for opseg in sheet.conditional_formatting:
+            for rule in opseg.rules:
+                for formula in rule.formula or []:
+                    assert not adresa.search(formula), f"{naziv}: {formula}"
+
+
 def test_work_sheets_are_empty_and_examples_are_separate():
     """Listovi naloga se popunjavaju pravim gostima, pa ne smeju da nose primere."""
     openpyxl = pytest.importorskip("openpyxl")
