@@ -31,13 +31,22 @@ COLUMNS: tuple[Column, ...] = (
     Column("arrival", "Dolazak", 95, editable=True),
     Column("days", "Dana", 52, editable=True),
     Column("stay", "Boravak", 170),
+    Column("email", "E-mail", 190, editable=True),
     Column("status", "Status", 90),
     Column("reason", "Razlog", 250),
     Column("pdf", "Vaučer", 190),
 )
 
-COL_SELECTED = 0
-COL_STATUS = 8
+
+def _column_index(key: str) -> int:
+    return next(i for i, column in enumerate(COLUMNS) if column.key == key)
+
+
+COL_SELECTED = _column_index("selected")
+COL_STATUS = _column_index("status")
+
+#: Prva kolona u koju se kuca. Ovde se otvara unos kad se ručno doda red.
+COL_FIRST_EDITABLE = next(i for i, column in enumerate(COLUMNS) if column.editable)
 
 #: Poluprovidne podloge — čitljive i na beloj i na tamnoj pozadini.
 _ROW_COLORS: dict[Status, QColor | None] = {
@@ -133,6 +142,10 @@ class GuestTableModel(QAbstractTableModel):
             return guest.days_raw if editing else guest.days_display
         if key == "stay":
             return guest.stay_display
+        if key == "email":
+            # Prazna ćelija znači podrazumevanu adresu; ona se ne upisuje u red da se
+            # ne bi zaledila — menja se u traci i važi za sve prazne.
+            return guest.email or guest.email_raw
         if key == "status":
             return guest.status.label
         if key == "reason":
@@ -191,6 +204,8 @@ class GuestTableModel(QAbstractTableModel):
             guest.arrival_raw = text
         elif column.key == "days":
             guest.days_raw = text
+        elif column.key == "email":
+            guest.email_raw = text
         else:
             return False
 
@@ -214,6 +229,15 @@ class GuestTableModel(QAbstractTableModel):
         self.guests.extend(guests)
         self.endInsertRows()
         self.renumber()
+
+    def add_blank(self) -> int:
+        """Dodaj prazan red na kraj i vrati njegov indeks.
+
+        Za ručni unos, kad gosti ne dolaze iz Excela nego se kucaju u aplikaciji.
+        """
+        guest = Guest(row=len(self.guests) + 1)
+        self.append([guest])
+        return len(self.guests) - 1
 
     def remove_rows(self, rows: list[int]) -> None:
         for row in sorted(set(rows), reverse=True):

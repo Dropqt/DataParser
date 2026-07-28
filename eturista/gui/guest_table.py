@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QTableView
 
 from ..clipboard import PasteResult, parse_clipboard, to_clipboard
 from ..models import Guest
-from .table_model import COL_SELECTED, COLUMNS, GuestTableModel
+from .table_model import COL_FIRST_EDITABLE, COL_SELECTED, COLUMNS, GuestTableModel
 
 
 class GuestTable(QTableView):
@@ -21,6 +21,7 @@ class GuestTable(QTableView):
     pasted = Signal(object)          # PasteResult
     copied = Signal(int)             # koliko redova
     guests_removed = Signal(int)
+    row_added = Signal(int)          # redni broj dodatog reda
 
     def __init__(self, model: GuestTableModel, parent=None) -> None:
         super().__init__(parent)
@@ -67,6 +68,22 @@ class GuestTable(QTableView):
         self.copied.emit(len(guests))
         return len(guests)
 
+    # -- ručni unos -------------------------------------------------------
+
+    def add_row(self) -> int:
+        """Dodaj prazan red i odmah otvori „Ime“ za kucanje.
+
+        Kucanje se otvara samo da bi red bio upotrebljiv bez traženja miša: dodaš red,
+        kucaš ime, Tab, prezime, Tab… kao u Excelu.
+        """
+        row = self._model.add_blank()
+        index = self._model.index(row, COL_FIRST_EDITABLE)
+        self.setCurrentIndex(index)
+        self.scrollTo(index)
+        self.edit(index)
+        self.row_added.emit(row + 1)
+        return row
+
     # -- izbor ------------------------------------------------------------
 
     def selected_rows(self) -> list[int]:
@@ -102,6 +119,9 @@ class GuestTable(QTableView):
         if event.key() in (Qt.Key_Delete, Qt.Key_Backspace) and not self.state() == QAbstractItemView.EditingState:
             self.remove_selected()
             return
+        if event.key() == Qt.Key_Insert:
+            self.add_row()
+            return
         if event.key() == Qt.Key_Space:
             self._toggle_selected_checkboxes()
             return
@@ -121,6 +141,10 @@ class GuestTable(QTableView):
     def _show_menu(self, position) -> None:
         menu = QMenu(self)
         guests = self.selected_guests()
+
+        add = QAction("Dodaj prazan red\tIns", self)
+        add.triggered.connect(self.add_row)
+        menu.addAction(add)
 
         paste = QAction("Nalepi iz Excela\tCtrl+V", self)
         paste.triggered.connect(lambda: self.paste_from_clipboard(self._model.year))

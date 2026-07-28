@@ -17,6 +17,8 @@ class ErrorKind(str, Enum):
     JMBG_INVALID_LOCAL = "JMBG_INVALID_LOCAL"
     DATE_INVALID = "DATE_INVALID"
     MISSING_FIELD = "MISSING_FIELD"
+    #: E-mail po kom se vaučeri razvrstavaju u foldere ne izgleda kao adresa.
+    EMAIL_INVALID = "EMAIL_INVALID"
 
     # --- greške koje javlja portal ---
     JMBG_REJECTED_PORTAL = "JMBG_REJECTED_PORTAL"
@@ -57,6 +59,7 @@ _LABELS: dict[ErrorKind, str] = {
     ErrorKind.JMBG_INVALID_LOCAL: "JMBG nije ispravan",
     ErrorKind.DATE_INVALID: "Datum nije ispravan",
     ErrorKind.MISSING_FIELD: "Nedostaje obavezno polje",
+    ErrorKind.EMAIL_INVALID: "E-mail nije ispravan",
     ErrorKind.JMBG_REJECTED_PORTAL: "Portal je odbio JMBG",
     ErrorKind.PORTAL_VALIDATION: "Portal je odbio podatke",
     ErrorKind.DUPLICATE: "Gost je već prijavljen",
@@ -74,6 +77,7 @@ _DATA_PROBLEMS = frozenset({
     ErrorKind.JMBG_INVALID_LOCAL,
     ErrorKind.DATE_INVALID,
     ErrorKind.MISSING_FIELD,
+    ErrorKind.EMAIL_INVALID,
     ErrorKind.JMBG_REJECTED_PORTAL,
     ErrorKind.PORTAL_VALIDATION,
 })

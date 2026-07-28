@@ -12,7 +12,13 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from alati.napravi_primer_excel import SAMPLE, broken_jmbg, jmbg  # noqa: E402
+from alati.napravi_primer_excel import (  # noqa: E402
+    NALOZI,
+    PRIMERI_SHEET,
+    SAMPLE,
+    broken_jmbg,
+    jmbg,
+)
 
 from eturista.errors import ErrorKind, ValidationError  # noqa: E402
 from eturista.validation import validate_jmbg  # noqa: E402
@@ -88,11 +94,26 @@ def test_generated_file_exists_and_opens():
         pytest.skip("primer još nije generisan — pokreni alati/napravi_primer_excel.py")
 
     book = openpyxl.load_workbook(path)
-    assert book.sheetnames == ["Gosti", "Uputstvo"]
+    assert book.sheetnames == [*NALOZI, PRIMERI_SHEET, "Uputstvo"]
 
     from eturista.models import EXPORT_HEADERS
 
-    sheet = book["Gosti"]
-    headers = [sheet.cell(row=1, column=i).value for i in range(1, len(EXPORT_HEADERS) + 1)]
-    # Prve kolone moraju da odgovaraju izlazu iz aplikacije, da se lepljenje poklopi.
-    assert tuple(headers) == EXPORT_HEADERS
+    # Svaki radni list mora da ima isto zaglavlje kao izlaz iz aplikacije, da bi se
+    # rezultat ture zalepio nazad bez pomeranja kolona — svejedno na kom je listu.
+    for naziv in [*NALOZI, PRIMERI_SHEET]:
+        sheet = book[naziv]
+        headers = [sheet.cell(row=1, column=i).value for i in range(1, len(EXPORT_HEADERS) + 1)]
+        assert tuple(headers) == EXPORT_HEADERS, f"list {naziv}"
+
+
+def test_work_sheets_are_empty_and_examples_are_separate():
+    """Listovi naloga se popunjavaju pravim gostima, pa ne smeju da nose primere."""
+    openpyxl = pytest.importorskip("openpyxl")
+    path = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
+    if not path.exists():
+        pytest.skip("primer još nije generisan — pokreni alati/napravi_primer_excel.py")
+
+    book = openpyxl.load_workbook(path)
+    for naziv in NALOZI:
+        assert book[naziv]["A2"].value is None, f"list {naziv} nije prazan"
+    assert book[PRIMERI_SHEET]["A2"].value == "Marko"

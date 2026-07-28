@@ -34,9 +34,12 @@ pokretanju (Selenium Manager) — prvi put ume da potraje tridesetak sekundi.
 
 ## Kako se radi tura
 
-1. U glavnom Excelu označi grupu gostiju (**ime, prezime, JMBG, dolazak, dana**) i `Ctrl+C`.
+1. U glavnom Excelu označi grupu gostiju (**ime, prezime, JMBG, dolazak, dana, e-mail**)
+   i `Ctrl+C`.
 2. U aplikaciji `Ctrl+V`. Redovi se pojave u tabeli; kolone se prepoznaju same — iz
    zaglavlja ako ga ima, inače po sadržaju.
+   Bez Excela: **＋ Dodaj red** (ili taster `Ins`) daje prazan red u koji se kuca direktno.
+   Tab prelazi na sledeću ćeliju, `Del` briše označene redove.
 3. **Crveni redovi imaju neispravan podatak** i vide se odmah, pre nego što browser
    uopšte krene. Dvoklik na ćeliju ispravlja; boja se menja istog trena.
 4. Izaberi nalog iz padajućeg menija i klikni **Pokreni turu**.
@@ -52,10 +55,42 @@ znači 5 noćenja — koliko traje minimalni vaučer. `5 dana` znači 5 noćenja
 Stari opseg i dalje radi: ako u koloni sa datumom nađe `05.10-10.10`, aplikacija ga pročita
 kao i pre, a kolonu `Dana` tad ignoriše. Stare liste iz prve ture ne treba prepravljati.
 
+### Listovi u `primer_gosti.xlsx`
+
+Po jedan radni list za svaki nalog — **Danica · Mileta · Zorica** — pa svako popunjava
+svoje goste bez mešanja. Nazivi listova su isti kao nalozi u padajućem meniju aplikacije.
+
+Radni listovi su prazni i spremni za unos; izmišljeni gosti stoje zasebno na listu
+**Primeri**, gde se vidi kako radi provera JMBG-a (poslednja dva su namerno pokvarena).
+
+Zaglavlje je isto na svakom listu, pa je svejedno sa kog se kopira i na koji se lepi nazad.
+
+### Vaučeri po folderima
+
+Vaučeri se razvrstavaju u foldere po adresi na koju se šalju, pa se cela grupa kasnije
+zakači iz jednog mesta:
+
+```
+vauceri/
+  vauceri@primer.rs/   2026_MARKO_PETROVIC.pdf
+                       2026_JOVAN_ILIC.pdf
+  ana@drugi.rs/        2026_ANA_ANIC.pdf
+```
+
+Adresa se upisuje **jednom**, u polje *Vaučeri na:* iznad tabele (pamti se u `.env` kao
+`ETURISTA_EMAIL`). Kolona `E-mail` se popunjava samo za goste čiji vaučeri idu negde
+drugde — prazna ćelija znači adresu iz tog polja.
+
+Ako se polje ostavi prazno, vaučeri ostaju u korenu `vauceri/`, kao i pre.
+
+Pre nego što tura krene, u log se ispiše koliko vaučera ide u koji folder — bolje da se
+pogrešna adresa vidi odmah nego da se posle traži gde je 30 PDF-ova završilo.
+
 ### Bojenje u glavnom Excelu
 
-Redosled kolona (`Ime · Prezime · JMBG · Dolazak · Dana · STATUS · RAZLOG · PDF`) je isti
-kao u `primer/primer_gosti.xlsx`, pa se rezultat lepi preko istih gostiju bez pomeranja ičega.
+Redosled kolona (`Ime · Prezime · JMBG · Dolazak · Dana · E-mail · STATUS · RAZLOG · PDF`)
+je isti kao u `primer/primer_gosti.xlsx`, pa se rezultat lepi preko istih gostiju bez
+pomeranja ičega.
 
 Kopirani redovi nose kolone `STATUS`, `RAZLOG` i `PDF`. Clipboard ne prenosi boje, pa se
 bojenje u glavnom Excelu podešava jednom preko *conditional formatting* nad `STATUS` kolonom:
@@ -80,6 +115,7 @@ ide se na sledećeg gosta.
 | `Portal još nije otvorio rezervacije` | registracija za vaučere nije počela | sačekaj dan otvaranja; tura se prekida odmah |
 | `Ne mogu da pročitam datum dolaska…` | datum se ne može pročitati | ispravi ćeliju |
 | `Broj dana mora biti bar 1` | besmislen broj noćenja | ispravi ćeliju |
+| `E-mail ne izgleda ispravno…` | u koloni E-mail nije adresa | ispravi ćeliju ili je isprazni |
 | `Element nije nađen — portal je verovatno promenjen` | portal je izmenjen | `run.py --proveri-selektore`, pa popravi `selectors.py` |
 | `Portal nije odgovorio na vreme` | prolazna smetnja | *Uređivanje → Vrati greške u red*, pa ponovo |
 | `Sesija je istekla` | portal je izbacio nalog | rešava se sam (ponovna prijava) |
@@ -123,7 +159,7 @@ eturista/
     voucher_page.py
   gui/                      PySide6 prozor, tabela sa bojama, radne niti
 fake_portal/app.py          lokalni lažni portal za razvoj i testove
-tests/                      149 testova
+tests/                      172 testa
 legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
 ```
 

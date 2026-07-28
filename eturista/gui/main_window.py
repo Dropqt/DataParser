@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -69,6 +70,22 @@ class MainWindow(QMainWindow):
         self.account_box = QComboBox()
         self.account_box.setMinimumWidth(170)
 
+        # Vaučeri se razvrstavaju u foldere po adresi na koju se šalju. Većina gostiju
+        # ide na istu, pa se ona kuca ovde jednom, a u koloni E-mail samo izuzeci.
+        self.email_box = QLineEdit(self.config.default_email)
+        self.email_box.setPlaceholderText("vauceri@primer.rs")
+        self.email_box.setToolTip(
+            "Vaučeri se snimaju u folder sa ovim imenom.\n"
+            "Gost koji u koloni E-mail ima svoju adresu ide u svoj folder.\n"
+            "Prazno = svi vaučeri idu zajedno, bez foldera."
+        )
+        self.email_box.setMinimumWidth(190)
+        self.email_box.textChanged.connect(lambda *_: self._update_status())
+
+        self.add_button = QPushButton("＋  Dodaj red")
+        self.add_button.setToolTip("Ins — prazan red za ručni unos, bez Excela")
+        self.add_button.clicked.connect(self._add_row)
+
         self.paste_button = QPushButton("Nalepi iz Excela")
         self.paste_button.setToolTip("Ctrl+V — kopiraj grupu gostiju iz glavnog Excela")
         self.paste_button.clicked.connect(self._paste)
@@ -89,7 +106,11 @@ class MainWindow(QMainWindow):
         toolbar.setContentsMargins(10, 8, 10, 4)
         toolbar.addWidget(QLabel("Nalog:"))
         toolbar.addWidget(self.account_box)
+        toolbar.addSpacing(12)
+        toolbar.addWidget(QLabel("Vaučeri na:"))
+        toolbar.addWidget(self.email_box)
         toolbar.addSpacing(16)
+        toolbar.addWidget(self.add_button)
         toolbar.addWidget(self.paste_button)
         toolbar.addWidget(self.copy_button)
         toolbar.addStretch(1)
@@ -100,6 +121,9 @@ class MainWindow(QMainWindow):
         self.table.pasted.connect(self._on_pasted)
         self.table.copied.connect(lambda n: self._log(f"Kopirano {n} redova u clipboard."))
         self.table.guests_removed.connect(lambda n: self._update_status())
+        # Red se može dodati i tasterom u samoj tabeli, mimo dugmeta — i tad statusna
+        # traka mora da se osveži.
+        self.table.row_added.connect(lambda n: self._update_status())
         self.model.dataChanged.connect(lambda *_: self._update_status())
 
         self.log_view = QPlainTextEdit()
@@ -134,6 +158,7 @@ class MainWindow(QMainWindow):
         files.addAction(self._action("Izlaz", self.close, QKeySequence.Quit))
 
         edit = self.menuBar().addMenu("&Uređivanje")
+        edit.addAction(self._action("Dodaj prazan red", self._add_row, QKeySequence(Qt.Key_Insert)))
         edit.addAction(self._action("Nalepi iz Excela", self._paste, QKeySequence.Paste))
         edit.addAction(self._action("Kopiraj rezultat", self._copy, QKeySequence.Copy))
         edit.addSeparator()
@@ -194,6 +219,12 @@ class MainWindow(QMainWindow):
             )
 
     # ------------------------------------------------------------------ akcije
+
+    def _add_row(self) -> None:
+        """Prazan red za ručni unos. Fokus ide u tabelu da se odmah kuca."""
+        self.table.setFocus()
+        self.table.add_row()
+        self._update_status()
 
     def _paste(self) -> None:
         self.table.paste_from_clipboard(self.config.year)
@@ -284,7 +315,10 @@ class MainWindow(QMainWindow):
 
         pending = self.batch.pending()
         if not pending:
-            invalid = [g for g in self.model.guests if g.selected and not g.is_ready]
+            # Prazan red je nepopunjen, ne pogrešan — o njemu se ne javlja kao o grešci.
+            invalid = [
+                g for g in self.model.guests if g.selected and not g.is_ready and not g.is_blank
+            ]
             if invalid:
                 QMessageBox.warning(
                     self,
@@ -310,10 +344,13 @@ class MainWindow(QMainWindow):
         ) != QMessageBox.Yes:
             return
 
+        default_email = self.email_box.text().strip().lower()
+
         self.batch.account_label = account.label
         self.store.save_batch(self.batch)
 
         self._log(f"— Tura #{self.batch.db_id} · nalog {account.label} · {len(pending)} gostiju —")
+        self._log(self._describe_voucher_dirs(pending, default_email))
         self._set_running(True)
         self.progress.setRange(0, len(pending))
         self.progress.setValue(0)
@@ -321,13 +358,31 @@ class MainWindow(QMainWindow):
 
         self.worker = RunWorker(
             self.config, account, self.batch, store=self.store,
-            options=RunOptions(download_vouchers=True),
+            options=RunOptions(download_vouchers=True, default_email=default_email),
         )
         self.worker.message.connect(self._log)
         self.worker.guest_updated.connect(self._on_guest_updated)
         self.worker.progress.connect(self._on_progress)
         self.worker.done.connect(self._on_done)
         self.worker.start()
+
+    def _describe_voucher_dirs(self, guests, default_email: str) -> str:
+        """Kratak pregled u koje foldere idu vaučeri, pre nego što tura krene.
+
+        Bolje da se pogrešna adresa vidi u logu na početku nego da se traži gde je
+        30 PDF-ova završilo.
+        """
+        from collections import Counter
+
+        brojac = Counter(
+            guest.voucher_dir(self.config.pdf_dir, default_email).name for guest in guests
+        )
+        koren = self.config.pdf_dir.name
+        delovi = [
+            f"{folder}: {broj}" if folder != koren else f"bez foldera: {broj}"
+            for folder, broj in brojac.most_common()
+        ]
+        return "Vaučeri → " + " · ".join(delovi)
 
     def _stop(self) -> None:
         if self.worker is not None:

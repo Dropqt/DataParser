@@ -5,9 +5,11 @@ import pytest
 from eturista.errors import ErrorKind, ValidationError
 from eturista.validation import (
     clean_jmbg,
+    email_folder,
     jmbg_check_digit,
     latinize,
     parse_stay,
+    validate_email,
     validate_jmbg,
     validate_name,
 )
@@ -264,3 +266,40 @@ def test_valid_fields_are_kept_even_when_another_fails():
     assert guest.jmbg_info is None
     assert guest.stay is not None
     assert guest.stay_display == "07.10.2026-14.10.2026"
+
+
+# --- e-mail i folderi -------------------------------------------------------
+
+def test_empty_email_is_not_an_error():
+    """Gost bez svoje adrese ide u podrazumevani folder — to nije greška."""
+    assert validate_email("") == ""
+    assert validate_email("   ") == ""
+
+
+def test_email_is_normalized():
+    assert validate_email("  Vauceri@Primer.RS ") == "vauceri@primer.rs"
+    assert validate_email("<marko@primer.rs>") == "marko@primer.rs"
+
+
+@pytest.mark.parametrize("bad", [
+    "Marko Petrović",        # ime umesto adrese — pomerena kolona
+    "marko@primer",          # nema domen
+    "marko(at)primer.rs",
+    "a@b.rs, c@d.rs",        # dve adrese u jednoj ćeliji
+    "@primer.rs",
+])
+def test_obvious_nonsense_is_rejected(bad):
+    with pytest.raises(ValidationError) as exc:
+        validate_email(bad)
+    assert exc.value.kind is ErrorKind.EMAIL_INVALID
+
+
+def test_folder_keeps_the_address_readable():
+    assert email_folder("vauceri@primer.rs") == "vauceri@primer.rs"
+
+
+def test_folder_drops_characters_windows_refuses():
+    assert "/" not in email_folder("a/b@primer.rs")
+    assert email_folder("a:b@primer.rs") == "a_b@primer.rs"
+    # Windows tiho odseca tačku na kraju, pa je sklanjamo sami
+    assert not email_folder("marko@primer.rs.").endswith(".")

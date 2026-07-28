@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 from eturista.config import Config
 from eturista.gui.main_window import MainWindow
 from eturista.gui.table_model import COL_SELECTED, COLUMNS, GuestTableModel
-from eturista.models import Guest, Status
+from eturista.models import EXPORT_HEADERS, Guest, Status
 
 from .conftest import make_jmbg
 
@@ -200,6 +200,63 @@ def test_paste_appends_instead_of_replacing(window):
     assert [g.row for g in window.model.guests] == [1, 2]
 
 
+def test_manual_row_is_added_empty_and_not_red(window):
+    """Ručno dodat red je prazan, ali nije greška — tek se popunjava."""
+    window._add_row()
+
+    guest = window.model.guests[0]
+    assert len(window.model.guests) == 1
+    assert guest.is_blank
+    assert guest.status is Status.PENDING
+    assert guest.error is None
+    assert window.model.data(window.model.index(0, COL["status"])) == Status.PENDING.label
+
+
+def test_manual_row_turns_red_only_once_something_is_typed(window):
+    window._add_row()
+    model = window.model
+    model.setData(model.index(0, COL["given_name"]), "Marko", Qt.EditRole)
+
+    guest = model.guests[0]
+    assert not guest.is_blank
+    # sad jeste greška: ime postoji, ali JMBG i datum ne
+    assert guest.status is Status.ERROR
+    assert not guest.is_ready
+
+
+def test_manual_row_becomes_ready_when_filled_in(window):
+    window._add_row()
+    model = window.model
+    for key, value in (("given_name", "Marko"), ("surname", "Petrović"),
+                       ("jmbg", A), ("arrival", "05.10")):
+        model.setData(model.index(0, COL[key]), value, Qt.EditRole)
+
+    guest = model.guests[0]
+    assert guest.is_ready
+    assert guest.error is None
+    assert guest.stay.nights == 5     # prazna kolona Dana = 5 noćenja
+
+
+def test_manual_rows_are_numbered_after_pasted_ones(window):
+    set_clipboard(f"Marko\tPetrović\t{A}\t05.10\n")
+    window._paste()
+    window._add_row()
+
+    assert [g.row for g in window.model.guests] == [1, 2]
+    assert window.model.guests[1].is_blank
+
+
+def test_blank_row_does_not_block_start(window):
+    """Prazan red ne sme da javi „neispravni podaci“ kad se pokrene tura."""
+    set_clipboard(f"Marko\tPetrović\t{A}\t05.10\n")
+    window._paste()
+    window._add_row()
+
+    invalid = [g for g in window.model.guests if g.selected and not g.is_ready and not g.is_blank]
+    assert invalid == []
+    assert len(window.batch.pending()) == 1
+
+
 def test_bad_jmbg_is_red_right_after_paste(window):
     set_clipboard(f"Marko\tPetrović\t{BAD}\t05.10\n")
     window._paste()
@@ -218,10 +275,10 @@ def test_copy_produces_excel_row_with_status(window):
     window._copy()
     header, row = QGuiApplication.clipboard().text().split("\n")
 
-    assert header.split("\t")[5:] == ["STATUS", "RAZLOG", "PDF"]
-    cells = row.split("\t")
-    assert cells[5] == "OK"
-    assert cells[7] == "2026_PETROVIC_MARKO.pdf"
+    assert header.split("\t") == list(EXPORT_HEADERS)
+    cells = dict(zip(EXPORT_HEADERS, row.split("\t")))
+    assert cells["STATUS"] == "OK"
+    assert cells["PDF"] == "2026_PETROVIC_MARKO.pdf"
 
 
 def test_update_check_is_skipped_when_disabled(window):
@@ -298,3 +355,40 @@ def test_select_all_toggles_every_row(window):
 
     window._select_all(True)
     assert len(window.batch.pending()) == 2
+
+
+# --- razvrstavanje vaučera po folderima --------------------------------------
+
+def test_vouchers_go_to_folder_of_default_email(tmp_path):
+    guest = Guest(row=1, given_name_raw="Marko", surname_raw="Petrović",
+                  jmbg_raw=A, arrival_raw="05.10")
+    guest.validate(YEAR)
+    assert guest.voucher_dir(tmp_path, "vauceri@primer.rs") == tmp_path / "vauceri@primer.rs"
+
+
+def test_own_email_beats_the_default(tmp_path):
+    guest = Guest(row=1, given_name_raw="Ana", surname_raw="Anić",
+                  jmbg_raw=B, arrival_raw="05.10", email_raw="ana@drugi.rs")
+    guest.validate(YEAR)
+    assert guest.voucher_dir(tmp_path, "vauceri@primer.rs") == tmp_path / "ana@drugi.rs"
+
+
+def test_without_any_email_vouchers_stay_in_the_root(tmp_path):
+    """Ko ne koristi razvrstavanje, dobija isto ponašanje kao pre."""
+    guest = Guest(row=1, given_name_raw="Marko", surname_raw="Petrović",
+                  jmbg_raw=A, arrival_raw="05.10")
+    guest.validate(YEAR)
+    assert guest.voucher_dir(tmp_path, "") == tmp_path
+
+
+def test_toolbar_email_is_reported_before_the_run(window):
+    set_clipboard(
+        f"Marko\tPetrović\t{A}\t05.10\t5\t\n"
+        f"Ana\tAnić\t{B}\t06.10\t5\tana@drugi.rs\n"
+    )
+    window._paste()
+    window.email_box.setText("vauceri@primer.rs")
+
+    opis = window._describe_voucher_dirs(window.model.guests, "vauceri@primer.rs")
+    assert "vauceri@primer.rs: 1" in opis
+    assert "ana@drugi.rs: 1" in opis

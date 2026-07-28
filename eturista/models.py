@@ -8,7 +8,16 @@ from enum import Enum
 from pathlib import Path
 
 from .errors import ErrorKind, GuestError, ValidationError
-from .validation import JmbgInfo, Stay, latinize, resolve_stay, validate_jmbg, validate_name
+from .validation import (
+    JmbgInfo,
+    Stay,
+    email_folder,
+    latinize,
+    resolve_stay,
+    validate_email,
+    validate_jmbg,
+    validate_name,
+)
 
 
 class Status(str, Enum):
@@ -41,7 +50,7 @@ _STATUS_LABELS: dict[Status, str] = {
 #: Zaglavlje koje ide u clipboard pri Ctrl+C, i redosled kolona u tabeli.
 #: Mora da se poklapa sa kolonama A-H u primer/primer_gosti.xlsx, da bi se rezultat ture
 #: lepio nazad preko gostiju bez pomeranja kolona.
-EXPORT_HEADERS = ("Ime", "Prezime", "JMBG", "Dolazak", "Dana", "STATUS", "RAZLOG", "PDF")
+EXPORT_HEADERS = ("Ime", "Prezime", "JMBG", "Dolazak", "Dana", "E-mail", "STATUS", "RAZLOG", "PDF")
 
 
 @dataclass
@@ -58,12 +67,16 @@ class Guest:
     arrival_raw: str = ""
     #: Broj noćenja kako je unet. Prazno znači DEFAULT_DAYS.
     days_raw: str = ""
+    #: Adresa na koju idu vaučeri ovog gosta. Prazno znači podrazumevana adresa iz
+    #: podešavanja — većina gostiju ide na istu, pa se kuca samo za izuzetke.
+    email_raw: str = ""
 
     # popunjava validate()
     surname: str = ""
     given_name: str = ""
     jmbg_info: JmbgInfo | None = None
     stay: Stay | None = None
+    email: str = ""
 
     status: Status = Status.PENDING
     error: GuestError | None = None
@@ -110,6 +123,35 @@ class Guest:
         """Da li gost sme da uđe u turu."""
         return self.jmbg_info is not None and self.stay is not None and bool(self.surname and self.given_name)
 
+    @property
+    def is_blank(self) -> bool:
+        """Red u koji još ništa nije uneto.
+
+        Ručno dodat red počinje prazan. Takav red **nije greška** nego posao koji tek
+        predstoji, pa ne sme da pocrveni niti da broji kao neispravan podatak.
+        """
+        return not any(
+            field.strip()
+            for field in (
+                self.surname_raw,
+                self.given_name_raw,
+                self.jmbg_raw,
+                self.arrival_raw,
+                self.days_raw,
+                self.email_raw,
+            )
+        )
+
+    def voucher_dir(self, root: Path, default_email: str = "") -> Path:
+        """Gde se snima vaučer ovog gosta.
+
+        Vaučeri se razvrstavaju u foldere po adresi na koju se šalju, pa se cela grupa
+        kasnije zakači iz jednog foldera. Gost bez svoje adrese ide pod podrazumevanu;
+        ako ni nje nema, vaučeri ostaju u korenu kao i pre.
+        """
+        email = self.email or (default_email or "").strip().lower()
+        return root / email_folder(email) if email else root
+
     def pdf_name(self, year: int) -> str:
         """Naziv PDF vaučera: 2026_PETROVIC_MARKO.pdf (čist ASCII zbog Windows-a)."""
         surname = latinize(self.surname or self.surname_raw).upper() or "NEPOZNATO"
@@ -126,7 +168,16 @@ class Guest:
         """
         self.jmbg_info = None
         self.stay = None
+        self.email = ""
         self.note = ""
+
+        # Prazan red je tek dodat rukom i još se popunjava — ćutimo dok se ne ukuca
+        # bar nešto, umesto da red pocrveni na sve četiri greške odjednom.
+        if self.is_blank:
+            if self.status is Status.ERROR:
+                self.status = Status.PENDING
+            self.error = None
+            return False
 
         # Svako polje se proverava zasebno, pa se sve greške vide odjednom. Da se stalo
         # na prvoj, korisnik bi popravio JMBG i tek onda otkrio da je i datum loš.
@@ -137,6 +188,7 @@ class Guest:
             ("given_name", lambda: validate_name(self.given_name_raw, "Ime")),
             ("jmbg_info", lambda: validate_jmbg(self.jmbg_raw)),
             ("stay", lambda: resolve_stay(self.arrival_raw, self.days_raw, default_year)),
+            ("email", lambda: validate_email(self.email_raw)),
         ):
             try:
                 setattr(self, setter, check())
@@ -209,6 +261,7 @@ class Guest:
             self.jmbg,
             self.arrival_display,
             self.days_display,
+            self.email or self.email_raw,
             self.status.label,
             self.reason,
             self.pdf_display,

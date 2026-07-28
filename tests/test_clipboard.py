@@ -1,5 +1,5 @@
 from eturista.clipboard import parse_clipboard, split_rows, to_clipboard
-from eturista.models import Status
+from eturista.models import EXPORT_HEADERS, Status
 from eturista.validation import jmbg_check_digit
 
 YEAR = 2026
@@ -165,22 +165,71 @@ def test_export_round_trip_has_status_columns():
 
     out = to_clipboard(guests)
     header, row = out.split("\n")
-    assert header.split("\t") == [
-        "Ime", "Prezime", "JMBG", "Dolazak", "Dana", "STATUS", "RAZLOG", "PDF"
-    ]
-    cells = row.split("\t")
-    assert cells[0] == "Marko"
-    assert cells[1] == "Petrović"
-    assert cells[2] == A
-    assert cells[3] == "05.10.2026"
-    assert cells[4] == "5"
-    assert cells[5] == "OK"
-    assert cells[7] == "2026_PETROVIC_MARKO.pdf"
+    assert header.split("\t") == list(EXPORT_HEADERS)
+    # Kolone se traže po nazivu, ne po broju — inače svaka nova kolona obori test
+    # iz razloga koji nema veze sa onim što se proverava.
+    cells = dict(zip(EXPORT_HEADERS, row.split("\t")))
+    assert cells["Ime"] == "Marko"
+    assert cells["Prezime"] == "Petrović"
+    assert cells["JMBG"] == A
+    assert cells["Dolazak"] == "05.10.2026"
+    assert cells["Dana"] == "5"
+    assert cells["E-mail"] == ""
+    assert cells["STATUS"] == "OK"
+    assert cells["PDF"] == "2026_PETROVIC_MARKO.pdf"
 
 
 def test_export_shows_error_reason():
     bad = A[:12] + str((int(A[12]) + 1) % 10)
     guests = parse_clipboard(f"Marko\tPetrović\t{bad}\t05.10\t5\n", YEAR).guests
-    cells = to_clipboard(guests, include_header=False).split("\t")
-    assert cells[5] == "GREŠKA"
-    assert "kontrolna cifra" in cells[6]
+    cells = dict(zip(EXPORT_HEADERS, to_clipboard(guests, include_header=False).split("\t")))
+    assert cells["STATUS"] == "GREŠKA"
+    assert "kontrolna cifra" in cells["RAZLOG"]
+
+
+# --- e-mail kolona ----------------------------------------------------------
+
+def test_email_column_is_recognized_from_header():
+    result = parse_clipboard(
+        "Ime\tPrezime\tJMBG\tDolazak\tE-mail\n"
+        f"Marko\tPetrović\t{A}\t05.10\tvauceri@primer.rs\n",
+        YEAR,
+    )
+    assert result.guests[0].email == "vauceri@primer.rs"
+
+
+def test_email_column_is_recognized_by_content():
+    """Bez zaglavlja: ćelija sa @ ne može biti ništa drugo nego e-mail."""
+    result = parse_clipboard(
+        f"Marko\tPetrović\t{A}\t05.10\tvauceri@primer.rs\n"
+        f"Jovan\tIlić\t{B}\t06.10\tvauceri@primer.rs\n",
+        YEAR,
+    )
+    assert [g.email for g in result.guests] == ["vauceri@primer.rs"] * 2
+    # i imena nisu pobrkana time što je stigla još jedna tekstualna kolona
+    assert result.guests[0].given_name == "Marko"
+    assert result.guests[0].surname == "Petrović"
+
+
+def test_missing_email_column_is_fine():
+    result = parse_clipboard(f"Marko\tPetrović\t{A}\t05.10\n", YEAR)
+    assert result.guests[0].email == ""
+    assert result.guests[0].is_ready
+
+
+def test_nonsense_email_marks_the_row():
+    """Sa zaglavljem se zna da je kolona e-mail, pa se pokvarena vrednost prijavi.
+
+    Bez zaglavlja se takva ćelija ni ne prepozna kao e-mail (nema @), pa se i ne
+    proverava — to je namerno: bolje ne prepoznati kolonu nego pogrešno je pripisati.
+    """
+    from eturista.errors import ErrorKind
+
+    result = parse_clipboard(
+        "Ime\tPrezime\tJMBG\tDolazak\tDana\tE-mail\n"
+        f"Marko\tPetrović\t{A}\t05.10\t5\tmarko(at)primer.rs\n",
+        YEAR,
+    )
+    guest = result.guests[0]
+    assert guest.status is Status.ERROR
+    assert guest.error.kind is ErrorKind.EMAIL_INVALID

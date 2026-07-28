@@ -10,9 +10,12 @@ tipfeler vidi već u glavnoj tabeli, pre nego što se bilo šta kopira u program
 namerno pisane bez LET() i drugih novijih funkcija, da rade i u starijem Excelu i u
 LibreOffice-u.
 
-Raspored kolona A-H je **isti kao izlaz iz aplikacije** (``models.EXPORT_HEADERS``), pa se
-rezultat ture lepi preko A2 bez pomeranja ičega. I je provera JMBG-a, J-M su pomoćne
-kolone iza nje i sakrivene su.
+Raspored kolona je **isti kao izlaz iz aplikacije** (``models.EXPORT_HEADERS``), pa se
+rezultat ture lepi preko A2 bez pomeranja ičega. Iza njih ide provera JMBG-a, pa pomoćne
+kolone koje su sakrivene.
+
+Slova kolona se nigde ne kucaju — izvode se iz ``HEADERS`` preko :func:`col`. Dodavanje
+kolone je zato izmena na jednom mestu.
 """
 
 from __future__ import annotations
@@ -30,25 +33,50 @@ from eturista.validation import jmbg_check_digit  # noqa: E402
 
 ROWS = 200  # dokle sežu formule i bojenje
 
-#: Kolone A-G moraju da budu istim redom kao EXPORT_HEADERS u aplikaciji, da bi se
-#: rezultat ture lepio nazad preko A2 bez pomeranja ičega.
+#: Po jedan radni list za svaki nalog — svako popunjava svoje goste bez mešanja.
+#: Nazivi se poklapaju sa ``ETURISTA_NALOGx_NAZIV`` iz ``.env``, pa se odmah vidi
+#: koji list ide uz koji nalog u padajućem meniju aplikacije.
+NALOZI = ["Danica", "Mileta", "Zorica"]
+
+#: Primeri stoje zasebno da radni listovi budu prazni i spremni za pravi unos.
+PRIMERI_SHEET = "Primeri"
+
+#: Prve kolone moraju da budu istim redom kao EXPORT_HEADERS u aplikaciji, da bi se
+#: rezultat ture lepio nazad preko A2 bez pomeranja ičega. Test to i čuva.
 HEADERS = [
     ("Ime", 14),
     ("Prezime", 16),
     ("JMBG", 15),
     ("Dolazak", 12),
     ("Dana", 7),
+    ("E-mail", 26),
     ("STATUS", 12),
     ("RAZLOG", 38),
     ("PDF", 26),
     ("PROVERA JMBG", 34),
 ]
-#: Pomoćne kolone (sakrivene) — postoje samo da bi formula u I bila čitljiva.
+#: Pomoćne kolone (sakrivene) — postoje samo da bi formula za proveru bila čitljiva.
 HELPERS = [("zbir", 8), ("kontrolna", 10), ("godina", 8), ("dat.rođ.", 10)]
 
-VISIBLE = "ABCDEFGHI"
-LAST_VISIBLE = "I"
-FIRST_HELPER, LAST_HELPER = "J", "M"
+_NAZIVI = [naziv for naziv, _ in HEADERS + HELPERS]
+
+
+def col(naziv: str) -> str:
+    """Slovo kolone po naslovu iz zaglavlja.
+
+    Slova se nigde ne kucaju ručno: dovoljno je dodati kolonu u ``HEADERS`` i sve
+    formule, bojenja i opsezi se pomere sami. Ranije su bila ukucana na desetak mesta,
+    pa je svaka nova kolona značila lov po celom fajlu.
+    """
+    return get_column_letter(_NAZIVI.index(naziv) + 1)
+
+
+VISIBLE = "".join(col(naziv) for naziv, _ in HEADERS)
+LAST_VISIBLE = col(HEADERS[-1][0])
+FIRST_HELPER, LAST_HELPER = col(HELPERS[0][0]), col(HELPERS[-1][0])
+
+#: Kolone koje korisnik popunjava — do njih seže bojenje reda po statusu.
+LAST_INPUT = col("E-mail")
 
 #: Koliko noćenja se podrazumeva. Mora da odgovara validation.DEFAULT_DAYS.
 DEFAULT_DAYS = 5
@@ -103,7 +131,9 @@ SAMPLE = [
 
 def build_formulas(row: int) -> dict[str, str]:
     """Formule za jedan red. ``row`` je broj reda u Excelu (podaci kreću od 2)."""
-    c = f"C{row}"
+    c = f"{col('JMBG')}{row}"
+    zbir, kontrolna = f"{col('zbir')}{row}", f"{col('kontrolna')}{row}"
+    godina, rodjen = f"{col('godina')}{row}", f"{col('dat.rođ.')}{row}"
 
     def digit(position: int) -> str:
         return f"VALUE(MID({c},{position},1))"
@@ -116,39 +146,43 @@ def build_formulas(row: int) -> dict[str, str]:
 
     year = f"IF(VALUE(MID({c},5,3))>=800,1000,2000)+VALUE(MID({c},5,3))"
     day, month = f"VALUE(MID({c},1,2))", f"VALUE(MID({c},3,2))"
-    birth = f"DATE(L{row},{month},{day})"
+    birth = f"DATE({godina},{month},{day})"
 
     return {
-        # J: zbir sa težinama
-        f"J{row}": f'=IFERROR(IF(LEN({c})<>13,"",{weighted}),"")',
-        # K: kontrolna cifra — ako ispadne 10 ili 11, ona je 0
-        f"K{row}": f'=IF(J{row}="","",IF(11-MOD(J{row},11)>9,0,11-MOD(J{row},11)))',
-        # L: godina rođenja (GGG je godina po modulu 1000; 800+ znači 19xx)
-        f"L{row}": f'=IFERROR(IF(LEN({c})<>13,"",{year}),"")',
-        # M: datum rođenja — prazno ako taj datum ne postoji.
+        # zbir sa težinama
+        zbir: f'=IFERROR(IF(LEN({c})<>13,"",{weighted}),"")',
+        # kontrolna cifra — ako ispadne 10 ili 11, ona je 0
+        kontrolna: f'=IF({zbir}="","",IF(11-MOD({zbir},11)>9,0,11-MOD({zbir},11)))',
+        # godina rođenja (GGG je godina po modulu 1000; 800+ znači 19xx)
+        godina: f'=IFERROR(IF(LEN({c})<>13,"",{year}),"")',
+        # datum rođenja — prazno ako taj datum ne postoji.
         # Excel DATE ne greši na 31.02, nego prevrne na mart, pa se dan i mesec proveravaju.
-        f"M{row}": (
-            f'=IFERROR(IF(L{row}="","",'
+        rodjen: (
+            f'=IFERROR(IF({godina}="","",'
             f'IF(AND(DAY({birth})={day},MONTH({birth})={month}),{birth},"")),"")'
         ),
-        # E: broj noćenja se podrazumeva čim se upiše gost; prekucaj ako je drugačije
-        f"E{row}": f'=IF(A{row}="","",{DEFAULT_DAYS})',
-        # I: poruka o ispravnosti JMBG-a — ista logika kao u aplikaciji
-        f"I{row}": (
+        # broj noćenja se podrazumeva čim se upiše gost; prekucaj ako je drugačije
+        f"{col('Dana')}{row}": f'=IF({col("Ime")}{row}="","",{DEFAULT_DAYS})',
+        # poruka o ispravnosti JMBG-a — ista logika kao u aplikaciji
+        f"{col('PROVERA JMBG')}{row}": (
             f'=IF({c}="","",'
             f'IF(LEN({c})<>13,"Nema 13 cifara (ima "&LEN({c})&")",'
-            f'IF(K{row}="","JMBG sadrži nešto što nije cifra",'
-            f'IF(M{row}="","Nepostojeći datum rođenja",'
-            f'IF(VALUE(MID({c},13,1))<>K{row},'
-            f'"Pogrešna kontrolna cifra — treba "&K{row},'
+            f'IF({kontrolna}="","JMBG sadrži nešto što nije cifra",'
+            f'IF({rodjen}="","Nepostojeći datum rođenja",'
+            f'IF(VALUE(MID({c},13,1))<>{kontrolna},'
+            f'"Pogrešna kontrolna cifra — treba "&{kontrolna},'
             f'"✓ ispravan")))))'
         ),
     }
 
 
-def build_guests_sheet(workbook: Workbook):
-    sheet = workbook.active
-    sheet.title = "Gosti"
+def build_guests_sheet(workbook: Workbook, title: str, with_samples: bool = False):
+    """Jedan radni list sa gostima — zaglavlje, formule i bojenje.
+
+    Pravi se po jedan za svaki nalog, pa svako popunjava svoje bez mešanja. Formule i
+    bojenje su svuda isti; razlikuje se samo naziv lista i to da li nosi primere.
+    """
+    sheet = workbook.create_sheet(title)
 
     all_headers = HEADERS + HELPERS
     for index, (title, width) in enumerate(all_headers, start=1):
@@ -163,14 +197,15 @@ def build_guests_sheet(workbook: Workbook):
     sheet.auto_filter.ref = f"A1:{LAST_VISIBLE}{ROWS + 1}"
 
     explicit_days: dict[int, int] = {}
-    for offset, (given, surname, id_number, arrival, days) in enumerate(SAMPLE):
-        row = offset + 2
-        sheet[f"A{row}"] = given
-        sheet[f"B{row}"] = surname
-        sheet[f"C{row}"] = id_number
-        sheet[f"D{row}"] = arrival
-        if days:
-            explicit_days[row] = int(days)
+    if with_samples:
+        for offset, (given, surname, id_number, arrival, days) in enumerate(SAMPLE):
+            row = offset + 2
+            sheet[f"{col('Ime')}{row}"] = given
+            sheet[f"{col('Prezime')}{row}"] = surname
+            sheet[f"{col('JMBG')}{row}"] = id_number
+            sheet[f"{col('Dolazak')}{row}"] = arrival
+            if days:
+                explicit_days[row] = int(days)
 
     for row in range(2, ROWS + 2):
         for reference, formula in build_formulas(row).items():
@@ -179,15 +214,15 @@ def build_guests_sheet(workbook: Workbook):
         # Gde je broj noćenja drugačiji od podrazumevanog, upisuje se preko formule —
         # isto što korisnik radi kad prekuca vrednost.
         if row in explicit_days:
-            sheet[f"E{row}"] = explicit_days[row]
+            sheet[f"{col('Dana')}{row}"] = explicit_days[row]
 
-        sheet[f"C{row}"].number_format = "@"      # tekst, da vodeća nula preživi
-        sheet[f"E{row}"].alignment = Alignment(horizontal="center")
-        sheet[f"F{row}"].alignment = Alignment(horizontal="center")
+        sheet[f"{col('JMBG')}{row}"].number_format = "@"   # tekst, da vodeća nula preživi
+        sheet[f"{col('Dana')}{row}"].alignment = Alignment(horizontal="center")
+        sheet[f"{col('STATUS')}{row}"].alignment = Alignment(horizontal="center")
         for column in VISIBLE:
             sheet[f"{column}{row}"].border = BOX
 
-    # Pomoćne kolone su tu samo da bi formula u H bila čitljiva — sakrivamo ih.
+    # Pomoćne kolone su tu samo da bi formula za proveru bila čitljiva — sakrivamo ih.
     sheet.column_dimensions.group(FIRST_HELPER, LAST_HELPER, hidden=True)
 
     _add_conditional_formatting(sheet)
@@ -195,18 +230,22 @@ def build_guests_sheet(workbook: Workbook):
 
 
 def _add_conditional_formatting(sheet) -> None:
-    span = f"I2:I{ROWS + 1}"
+    provera = col("PROVERA JMBG")
+    span = f"{provera}2:{provera}{ROWS + 1}"
     sheet.conditional_formatting.add(
         span,
-        FormulaRule(formula=['LEFT($I2,1)="✓"'], fill=GREEN, font=GREEN_TEXT, stopIfTrue=True),
+        FormulaRule(
+            formula=[f'LEFT(${provera}2,1)="✓"'], fill=GREEN, font=GREEN_TEXT, stopIfTrue=True
+        ),
     )
     sheet.conditional_formatting.add(
         span,
-        FormulaRule(formula=['$I2<>""'], fill=RED, font=RED_TEXT),
+        FormulaRule(formula=[f'${provera}2<>""'], fill=RED, font=RED_TEXT),
     )
 
     # STATUS kolona — popunjava se lepljenjem rezultata iz aplikacije.
-    status = f"F2:F{ROWS + 1}"
+    status_col = col("STATUS")
+    status = f"{status_col}2:{status_col}{ROWS + 1}"
     for value, fill, font in (
         ("OK", GREEN, GREEN_TEXT),
         ("GREŠKA", RED, RED_TEXT),
@@ -219,13 +258,14 @@ def _add_conditional_formatting(sheet) -> None:
         sheet.conditional_formatting.add(status, rule)
 
     # Red se blago oboji čim STATUS kaže da je gost pao — lakše se skenira lista.
+    uneti = f"{col('Ime')}2:{LAST_INPUT}{ROWS + 1}"
     sheet.conditional_formatting.add(
-        f"A2:E{ROWS + 1}",
-        FormulaRule(formula=['$F2="GREŠKA"'], fill=RED),
+        uneti,
+        FormulaRule(formula=[f'${status_col}2="GREŠKA"'], fill=RED),
     )
     sheet.conditional_formatting.add(
-        f"A2:E{ROWS + 1}",
-        FormulaRule(formula=['$F2="OK"'], fill=GREEN),
+        uneti,
+        FormulaRule(formula=[f'${status_col}2="OK"'], fill=GREEN),
     )
 
 
@@ -237,36 +277,50 @@ def build_instructions_sheet(workbook: Workbook) -> None:
     lines: list[tuple[str, str]] = [
         ("naslov", "Kako se koristi ova tabela"),
         ("", ""),
+        ("podnaslov", "0. Listovi"),
+        ("", f"Po jedan list za svaki nalog: {', '.join(NALOZI)}."),
+        ("", "Svako popunjava svoj list, pa se grupe ne mešaju i svako vidi samo svoje goste."),
+        ("", f"Nazivi listova su isti kao nalozi u padajućem meniju aplikacije."),
+        ("", f"List '{PRIMERI_SHEET}' su izmišljeni primeri — tu se vidi kako radi provera"),
+        ("", "JMBG-a. Radni listovi su namerno prazni."),
+        ("", ""),
         ("podnaslov", "1. Unos gostiju"),
-        ("", "Popunjavaj kolone A-E: Ime, Prezime, JMBG, Dolazak, Dana."),
+        ("", f"Popunjavaj kolone {col('Ime')}-{LAST_INPUT}: Ime, Prezime, JMBG, Dolazak, Dana, E-mail."),
         ("", "JMBG kolona je formatirana kao TEKST — bez toga Excel pojede vodeću nulu kod"),
         ("", "gostiju rođenih 1-9. u mesecu, pa umesto 13 ostane 12 cifara."),
         ("", "Dolazak piši kao 05.10 ili 05.10.2026 — oba se prepoznaju."),
         ("", f"Dana se popunjava samo od sebe na {DEFAULT_DAYS}; prekucaj ako je boravak duži."),
+        ("", "E-mail popunjavaj samo za goste čiji vaučeri idu na drugu adresu nego ostali —"),
+        ("", "prazna ćelija znači adresu upisanu u aplikaciji. Po njoj se prave folderi sa vaučerima."),
         ("", f"'{DEFAULT_DAYS} dana' znači {DEFAULT_DAYS} noćenja: dolazak 05.10 -> odlazak 10.10."),
         ("", ""),
-        ("podnaslov", "2. Provera JMBG-a (kolona I)"),
+        ("podnaslov", f"2. Provera JMBG-a (kolona {col('PROVERA JMBG')})"),
         ("", "Računa se automatski, po zvaničnoj formuli za kontrolnu cifru."),
         ("", "Zeleno '✓ ispravan' znači da broj matematički može da postoji."),
         ("", "Crveno kaže tačno šta ne valja, npr. 'Pogrešna kontrolna cifra — treba 8'."),
-        ("", "Kolone J-M su pomoćne (sakrivene) — služe samo formuli u koloni I. Ne diraj ih."),
+        ("", f"Kolone {FIRST_HELPER}-{LAST_HELPER} su pomoćne (sakrivene) — služe samo formuli u "
+         f"koloni {col('PROVERA JMBG')}. Ne diraj ih."),
         ("", ""),
         ("napomena", "Provera hvata tipfelere, ali ne može da zna da li broj zaista pripada tom čoveku."),
         ("napomena", "To utvrđuje tek portal — i to se posle vidi u koloni RAZLOG."),
         ("", ""),
         ("podnaslov", "3. Slanje u aplikaciju"),
-        ("", "Označi kolone A-E za grupu gostiju koju prijavljuješ (5, 10, 30 — koliko hoćeš),"),
+        ("", f"Označi kolone {col('Ime')}-{LAST_INPUT} za grupu gostiju koju prijavljuješ "
+         "(5, 10, 30 — koliko hoćeš),"),
         ("", "Ctrl+C, pa u aplikaciji Ctrl+V."),
         ("", ""),
         ("podnaslov", "4. Vraćanje rezultata"),
-        ("", "Kad se tura završi, u aplikaciji Ctrl+C i ovde zalepi preko kolone A za te goste."),
-        ("", "Popuniće se i F (STATUS), G (RAZLOG) i H (PDF). Bojenje je već podešeno:"),
+        ("", f"Kad se tura završi, u aplikaciji Ctrl+C i ovde zalepi preko kolone {col('Ime')} za te goste."),
+        ("", f"Popuniće se i {col('STATUS')} (STATUS), {col('RAZLOG')} (RAZLOG) i {col('PDF')} (PDF). "
+         "Bojenje je već podešeno:"),
         ("", "OK = zeleno, GREŠKA = crveno, PRESKOČEN = sivo."),
-        ("", "Kolone I-M su formule i ostaju netaknute jer su desno od zalepljenog."),
+        ("", f"Kolone {col('PROVERA JMBG')}-{LAST_HELPER} su formule i ostaju netaknute jer su "
+         "desno od zalepljenog."),
         ("", ""),
         ("podnaslov", "Napomena"),
-        ("", "Redovi 2-8 su izmišljeni primeri — obriši ih pre pravog rada."),
-        ("", "Poslednja dva su namerno pokvarena da se vidi kako provera reaguje."),
+        ("", f"Na listu '{PRIMERI_SHEET}' su izmišljeni gosti — ne pripadaju nikome."),
+        ("", "Poslednja dva su namerno pokvarena da se vidi kako provera reaguje:"),
+        ("", "jednom je pokvarena kontrolna cifra, drugom fali vodeća nula."),
     ]
 
     for index, (kind, text) in enumerate(lines, start=1):
@@ -281,14 +335,23 @@ def build_instructions_sheet(workbook: Workbook) -> None:
 
 def main() -> None:
     workbook = Workbook()
-    build_guests_sheet(workbook)
+    # openpyxl novu radnu svesku pravi sa jednim praznim listom; svoje prave
+    # ``create_sheet``, pa se taj podrazumevani sklanja.
+    workbook.remove(workbook.active)
+
+    for naziv in NALOZI:
+        build_guests_sheet(workbook, naziv)
+    build_guests_sheet(workbook, PRIMERI_SHEET, with_samples=True)
     build_instructions_sheet(workbook)
+
+    workbook.active = 0   # fajl se otvara na prvom nalogu, ne na primerima
 
     target = Path(__file__).resolve().parent.parent / "primer" / "primer_gosti.xlsx"
     target.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(target)
     print(f"Napravljeno: {target}")
-    print(f"  {len(SAMPLE)} primera, formule do reda {ROWS + 1}")
+    print(f"  listovi: {', '.join(NALOZI)} (prazni) + {PRIMERI_SHEET} ({len(SAMPLE)} primera) + Uputstvo")
+    print(f"  formule do reda {ROWS + 1}")
 
 
 if __name__ == "__main__":

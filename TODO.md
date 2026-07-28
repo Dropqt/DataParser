@@ -54,6 +54,19 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] Čeka se da nestane `.crdownload` — nema više "najskorijeg fajla u ~/Downloads"
 - [x] Preimenovanje u `2026_PETROVIC_MARKO.pdf` (ASCII, radi i na Windows-u)
 
+### Ručni unos i razvrstavanje vaučera
+- [x] **＋ Dodaj red** (i taster `Ins`) — prazan red za kucanje, bez Excela. Prazan red
+      nije greška: ne crveni dok se u njega nešto ne unese, i ne javlja se kao
+      „neispravan podatak“ pri pokretanju ture
+- [x] Kolona **E-mail** — prepoznaje se iz zaglavlja i po sadržaju (ćelija sa `@`)
+- [x] Polje *Vaučeri na:* u traci (`ETURISTA_EMAIL`) — važi za sve prazne ćelije
+- [x] Vaučeri se snimaju u `vauceri/<adresa>/`; bez adrese ostaju u korenu kao pre
+- [x] Pre pokretanja se u log ispiše koliko vaučera ide u koji folder
+- [x] `primer_gosti.xlsx` regenerisan sa novom kolonom; slova kolona se u generatoru
+      više ne kucaju ručno nego izvode iz zaglavlja
+- [x] Po jedan radni list za svaki nalog (**Danica · Mileta · Zorica**), prazni i spremni
+      za unos; izmišljeni gosti prebačeni na zaseban list **Primeri**
+
 ### Alati
 - [x] `primer/primer_gosti.xlsx` — Excel sa gotovom JMBG proverom (kolona H),
       kolone A-G istim redom kao izlaz iz aplikacije

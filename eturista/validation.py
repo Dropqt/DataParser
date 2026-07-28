@@ -409,6 +409,48 @@ def validate_name(raw: str, field_label: str) -> str:
     return name
 
 
+# ---------------------------------------------------------------------------
+# E-mail — po njemu se vaučeri razvrstavaju u foldere
+# ---------------------------------------------------------------------------
+
+#: Namerno labava provera. Posao ovoga nije da presudi da li adresa postoji, nego da
+#: uhvati ono što očigledno nije e-mail — pomerenu kolonu, ime umesto adrese, dva
+#: nalepljena maila u jednoj ćeliji.
+_EMAIL_RE = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[A-Za-z]{2,}$")
+
+#: Znaci koje Windows ne prima u imenu foldera. Na Linux-u smeta samo ``/``, ali naziv
+#: mora biti isti na oba sistema — inače isti spisak gostiju pravi različite foldere.
+_LOSI_ZA_FOLDER = '<>:"/\\|?*'
+
+
+def validate_email(raw: str) -> str:
+    """Vrati očišćen e-mail, ili prazan string ako ćelija nije popunjena.
+
+    Prazno **nije greška** — takav gost ide u podrazumevani folder.
+    """
+    email = (raw or "").strip().strip("<>").lower()
+    if not email:
+        return ""
+    if not _EMAIL_RE.match(email):
+        raise ValidationError(
+            ErrorKind.EMAIL_INVALID,
+            f"E-mail ne izgleda ispravno ({email!r})",
+        )
+    return email
+
+
+def email_folder(email: str) -> str:
+    """Naziv foldera za datu adresu.
+
+    Adresa se koristi kakva jeste, jer se folder gleda ljudskim okom i traži po imenu.
+    Menjaju se samo znaci koje Windows ne prima, i tačke na kraju — Windows ih tiho
+    odseca, pa bi folder posle imao drugo ime nego što kod misli.
+    """
+    naziv = "".join("_" if znak in _LOSI_ZA_FOLDER else znak for znak in email.strip())
+    naziv = naziv.rstrip(" .")
+    return naziv or "bez_adrese"
+
+
 #: Znaci koje NFKD ne razlaže (đ, ђ i ćirilica uopšte) moraju ručno.
 _TRANSLIT = {
     "đ": "dj", "ђ": "dj", "љ": "lj", "њ": "nj", "џ": "dz",

@@ -42,6 +42,9 @@ class RunOptions:
     download_vouchers: bool = True
     #: Snimanje ekrana pri svakoj grešci.
     screenshots: bool = True
+    #: Adresa za goste koji nemaju svoju upisanu — po njoj se pravi podfolder sa
+    #: vaučerima. Dolazi iz podešavanja, a u aplikaciji se menja u traci pre pokretanja.
+    default_email: str = ""
 
 
 @dataclass
@@ -275,7 +278,8 @@ class Runner:
             return None
         if not self.voucher_page.is_available:
             return None
-        return self.voucher_page.download(guest, self.config.pdf_dir, self.config.year)
+        target = guest.voucher_dir(self.config.pdf_dir, self.options.default_email)
+        return self.voucher_page.download(guest, target, self.config.year)
 
     def _recover(self) -> None:
         """Tvrd refresh forme — sledeći gost kreće od čistog stanja."""

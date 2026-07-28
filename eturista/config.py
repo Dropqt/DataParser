@@ -36,6 +36,9 @@ class Config:
     db_path: Path
     year: int
     headless: bool
+    #: Adresa na koju idu vaučeri gostiju koji nemaju svoju upisanu. Po njoj se pravi
+    #: podfolder u ``pdf_dir``. Prazno = vaučeri ostaju u korenu, bez razvrstavanja.
+    default_email: str = ""
 
     @classmethod
     def load(cls) -> "Config":
@@ -50,6 +53,7 @@ class Config:
             db_path=_path_from_env("ETURISTA_DB", root / "eturista.db"),
             year=int(raw_year) if raw_year.isdigit() else date.today().year,
             headless=os.getenv("ETURISTA_HEADLESS", "").strip().lower() in {"1", "true", "da", "yes"},
+            default_email=os.getenv("ETURISTA_EMAIL", "").strip().lower(),
         )
 
     def ensure_dirs(self) -> None:

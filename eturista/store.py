@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS guests (
     jmbg          TEXT NOT NULL DEFAULT '',
     arrival       TEXT NOT NULL DEFAULT '',
     days          TEXT NOT NULL DEFAULT '',
+    email         TEXT NOT NULL DEFAULT '',
     status        TEXT NOT NULL DEFAULT 'PENDING',
     error_kind    TEXT,
     error_message TEXT,
@@ -108,6 +109,7 @@ class Store:
         for column, definition in (
             ("arrival", "TEXT NOT NULL DEFAULT ''"),
             ("days", "TEXT NOT NULL DEFAULT ''"),
+            ("email", "TEXT NOT NULL DEFAULT ''"),
         ):
             if column not in existing:
                 self._conn.execute(f"ALTER TABLE guests ADD COLUMN {column} {definition}")
@@ -160,15 +162,16 @@ class Store:
         self._conn.execute(
             """
             INSERT INTO guests (batch_id, row_no, surname, given_name, jmbg, arrival, days,
-                                status, error_kind, error_message, error_detail,
+                                email, status, error_kind, error_message, error_detail,
                                 screenshot, pdf_path, attempts, selected, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (batch_id, row_no) DO UPDATE SET
                 surname = excluded.surname,
                 given_name = excluded.given_name,
                 jmbg = excluded.jmbg,
                 arrival = excluded.arrival,
                 days = excluded.days,
+                email = excluded.email,
                 status = excluded.status,
                 error_kind = excluded.error_kind,
                 error_message = excluded.error_message,
@@ -187,6 +190,7 @@ class Store:
                 guest.jmbg,
                 guest.arrival_raw,
                 guest.days_raw,
+                guest.email or guest.email_raw,
                 guest.status.value,
                 error.kind.value if error else None,
                 error.message if error else None,
@@ -295,6 +299,7 @@ def _row_to_guest(row: sqlite3.Row, default_year: int | None) -> Guest:
         jmbg_raw=row["jmbg"] or "",
         arrival_raw=row["arrival"] or "",
         days_raw=row["days"] or "",
+        email_raw=(row["email"] if "email" in row.keys() else "") or "",
         pdf_path=row["pdf_path"],
         attempts=int(row["attempts"] or 0),
         selected=bool(row["selected"]),

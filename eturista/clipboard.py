@@ -22,6 +22,7 @@ _HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "date": ("dolazak", "datum", "datum_dolaska", "datumi", "date", "od", "termin",
              "boravak", "period", "od_do"),
     "days": ("dana", "broj_dana", "dani", "noci", "nocenja", "broj_nocenja", "days", "nights"),
+    "email": ("email", "e_mail", "mail", "e_posta", "eposta", "adresa", "e_adresa"),
 }
 
 #: Kolone tipa "Ime i prezime" — jedna ćelija sa oba imena.
@@ -42,6 +43,7 @@ class ColumnMapping:
     jmbg: int | None = None
     date: int | None = None
     days: int | None = None
+    email: int | None = None
     full_name: int | None = None
     from_header: bool = False
 
@@ -65,6 +67,8 @@ class ColumnMapping:
             parts.append(f"dolazak→{self.date + 1}")
         if self.days is not None:
             parts.append(f"dana→{self.days + 1}")
+        if self.email is not None:
+            parts.append(f"e-mail→{self.email + 1}")
         source = "iz zaglavlja" if self.from_header else "po sadržaju"
         return f"kolone ({source}): " + ", ".join(parts)
 
@@ -126,6 +130,19 @@ def _looks_like_text(cell: str) -> bool:
     return bool(_LETTER.search(cell))
 
 
+def _looks_like_email(cell: str) -> bool:
+    """Ćelija sa @ između dva neprazna dela — dovoljno da se kolona prepozna.
+
+    Ovde se ne presuđuje da li je adresa ispravna (to radi ``validate_email``), samo
+    da li kolona uopšte drži mejlove.
+    """
+    text = cell.strip()
+    if text.count("@") != 1:
+        return False
+    levo, _, desno = text.partition("@")
+    return bool(levo) and "." in desno
+
+
 def detect_header(row: list[str]) -> ColumnMapping | None:
     """Prepoznaj zaglavlje. Vrati None ako prvi red izgleda kao podaci."""
     if any(_looks_like_jmbg(cell) for cell in row):
@@ -158,6 +175,7 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
     days_score = [0] * width
     text_score = [0] * width
     upper_score = [0] * width
+    email_score = [0] * width
     columns: list[list[str]] = [[] for _ in range(width)]
 
     for row in rows:
@@ -166,7 +184,11 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
             if not cell:
                 continue
             columns[index].append(cell)
-            if _looks_like_jmbg(cell):
+            # E-mail se proverava prvi: ćelija sa @ ne može biti ništa drugo, a bez
+            # ovoga bi je _looks_like_text pokupio kao ime ili prezime.
+            if _looks_like_email(cell):
+                email_score[index] += 1
+            elif _looks_like_jmbg(cell):
                 jmbg_score[index] += 1
             elif _looks_like_date(cell):
                 date_score[index] += 1
@@ -182,6 +204,8 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
         mapping.jmbg = jmbg_score.index(max(jmbg_score))
     if width and max(date_score) > 0:
         mapping.date = date_score.index(max(date_score))
+    if width and max(email_score) > 0:
+        mapping.email = email_score.index(max(email_score))
 
     # Kolona sa malim brojevima je broj noćenja — osim ako je to samo redni broj
     # (1, 2, 3, …), što se lako pomeša ako se iz Excela kopira i kolona sa numeracijom.
@@ -192,7 +216,7 @@ def detect_by_content(rows: list[list[str]]) -> ColumnMapping:
     if day_candidates:
         mapping.days = max(day_candidates, key=lambda i: days_score[i])
 
-    taken = (mapping.jmbg, mapping.date, mapping.days)
+    taken = (mapping.jmbg, mapping.date, mapping.days, mapping.email)
     text_columns = [i for i in range(width) if text_score[i] > 0 and i not in taken]
 
     if len(text_columns) == 1:
@@ -256,7 +280,7 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
         # Zaglavlje ume da pokrije samo deo kolona; ostalo dopuni po sadržaju.
         if rows and not mapping.is_usable:
             guessed = detect_by_content(rows)
-            for name in ("surname", "given_name", "jmbg", "date", "days", "full_name"):
+            for name in ("surname", "given_name", "jmbg", "date", "days", "email", "full_name"):
                 if getattr(mapping, name) is None:
                     setattr(mapping, name, getattr(guessed, name))
     else:
@@ -301,6 +325,7 @@ def parse_clipboard(text: str, default_year: int | None = None, start_row: int =
             jmbg_raw=cell(row, mapping.jmbg),
             arrival_raw=cell(row, mapping.date),
             days_raw=cell(row, mapping.days),
+            email_raw=cell(row, mapping.email),
         )
         guest.validate(default_year)
         result.guests.append(guest)
