@@ -19,6 +19,11 @@ cp .env.example .env      # pa popuni korisnička imena i lozinke
 Treba i **Chrome ili Chromium** na sistemu. Chromedriver se skida automatski pri prvom
 pokretanju (Selenium Manager) - prvi put ume da potraje tridesetak sekundi.
 
+Na Windows-u ista tri koraka radi **`postavi.bat`** (dupli klik). Proveri da li ima
+Python i Chrome, napravi `.venv`, instalira biblioteke i napravi `.env` iz `.env.example`.
+Može da se pokrene i više puta: postojeći `.venv` se koristi, a `.env` se nikad ne
+prepisuje. Aplikacija se posle pokreće sa `.venv\Scripts\python run.py`.
+
 > `.env` drži lozinke i nalazi se u `.gitignore`. Repo je javan, pa aplikacija pri
 > pokretanju proveri da `.env` nije slučajno ušao u git i upozori ako jeste.
 
