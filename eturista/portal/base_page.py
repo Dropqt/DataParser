@@ -123,17 +123,44 @@ class BasePage:
 
         Angular ume da odbije ili preformatira unos (maske za JMBG i datume), pa se
         posle upisa čita nazad - bolje da ovde padne nego da se pošalje prazno polje.
+
+        Polje ume da **postoji a da ne prima unos**. Dva razloga, oba viđena na portalu:
+
+        * korak wizard-a se otvara uz animaciju, pa je sadržaj u DOM-u pre nego što
+          postane interaktivan;
+        * ``mat-date-range-input`` drži unutrašnja polja (``Датум од`` / ``Датум до``)
+          **nevidljivim dok se polje ne aktivira** - dok se ne fokusira, vidi se samo
+          skupljeni natpis „Период резервације“.
+
+        Zato se pre svakog pokušaja polje fokusira, pa se upis ponavlja dok ne prođe.
+        Ako ni to ne uspe, vrednost se upisuje kroz JavaScript uz ``input``/``change``
+        događaje, da je Angular pokupi kao da je otkucana.
         """
-        element = self.find(locator, timeout)
-        try:
-            element.clear()
-            element.send_keys(value)
-        except (ElementNotInteractableException, StaleElementReferenceException) as exc:
-            raise PortalError(
-                ErrorKind.SELECTOR_NOT_FOUND,
-                f"{locator.description} ne prima unos",
-                str(exc),
-            ) from exc
+        limit = self.timeout if timeout is None else timeout
+        deadline = time.monotonic() + limit
+
+        while True:
+            element = self.find(locator, timeout)
+            self._focus(element)
+            try:
+                WebDriverWait(self.driver, 1.0).until(EC.element_to_be_clickable(element))
+            except TimeoutException:
+                pass  # provera ispod je merodavna
+
+            try:
+                element.clear()
+                element.send_keys(value)
+                break
+            except (ElementNotInteractableException, StaleElementReferenceException) as exc:
+                if time.monotonic() >= deadline:
+                    if self._set_value_via_js(locator, value):
+                        break
+                    raise PortalError(
+                        ErrorKind.SELECTOR_NOT_FOUND,
+                        f"{locator.description} ne prima unos",
+                        str(exc),
+                    ) from exc
+                time.sleep(0.2)
 
         written = (element.get_attribute("value") or "").strip()
         if written and _digits(written) != _digits(value) and written != value:
@@ -141,6 +168,43 @@ class BasePage:
                 ErrorKind.PORTAL_VALIDATION,
                 f"{locator.description}: portal je promenio uneto ({value!r} → {written!r})",
             )
+
+    def _focus(self, element: WebElement) -> None:
+        """Dovuci polje u vidno polje i fokusiraj ga.
+
+        Material otkrije unutrašnja polja ``mat-date-range-input``-a tek kad se grupa
+        fokusira; bez ovoga su ``displayed=False`` i Selenium odbija da kuca u njih.
+        """
+        try:
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center'}); arguments[0].focus();",
+                element,
+            )
+        except WebDriverException:
+            pass  # fokus je pomoć, ne uslov - upis ispod svejedno pokušava
+
+    def _set_value_via_js(self, locator: Locator, value: str) -> bool:
+        """Poslednja linija odbrane: upiši vrednost i javi Angular-u da se promenila.
+
+        Bez ``input``/``change`` događaja Angular ne vidi izmenu i polje ostane
+        „netaknuto“, pa forma odbije da se pošalje. Vraća True ako je vrednost legla.
+        """
+        try:
+            element = self.find(locator, timeout=2.0)
+            self.driver.execute_script(
+                """
+                const [el, v] = arguments;
+                el.value = v;
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+                el.dispatchEvent(new Event('blur', {bubbles: true}));
+                """,
+                element,
+                value,
+            )
+            return (element.get_attribute("value") or "").strip() != ""
+        except (WebDriverException, PortalError):
+            return False
 
     def click(self, locator: Locator, timeout: float | None = None) -> None:
         """Klikni, sa jednim pokušajem preko JavaScript-a ako nešto prekriva dugme."""

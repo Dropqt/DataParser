@@ -104,6 +104,17 @@ def tekst_sadrzi(*varijante: str, cvor: str = ".") -> str:
     return " or ".join(f"contains({haystack}, '{varijanta.lower()}')" for varijanta in varijante)
 
 
+def tekst_je(*varijante: str, cvor: str = ".") -> str:
+    """XPath uslov: ``cvor`` je **tačno** jedna od varijanti.
+
+    Za kratke reči koje su i deo dužeg teksta u istom elementu. Dugme „Да“ u dijalogu
+    za potvrdu stoji pored pitanja „Да ли сте сигурни…“ - ``tekst_sadrzi('да')`` bi
+    pogodio i pitanje i sam dijalog, pa mora poređenje celog teksta.
+    """
+    haystack = f"translate(normalize-space({cvor}), '{_OD}', '{_NA}')"
+    return " or ".join(f"{haystack} = '{varijanta.lower()}'" for varijanta in varijante)
+
+
 def dugme_sa_tekstom(*varijante: str) -> Selector:
     """Dugme (ili link koji izgleda kao dugme) sa datim tekstom, u oba pisma."""
     uslov = tekst_sadrzi(*varijante)
@@ -269,6 +280,19 @@ SCHEME_ROW_LOCKED = _loc(
     state=LocatorState.CONFIRMED,  # portal, 27.07.2026 - zaključano
 )
 
+#: Po ovome se zna da je klik na čekboks stvarno prošao. Klik na ``mat-checkbox``
+#: **prebacuje** stanje, pa se posle klika mora proveriti - inače bi ponovni pokušaj
+#: skinuo kvačicu umesto da je postavi.
+SCHEME_ROW_CHECKED = _loc(
+    "SCHEME_ROW_CHECKED",
+    (By.CSS_SELECTOR, "mat-checkbox.cbIzaberi input:checked"),
+    "Čekiran izbor prijave ugostitelja",
+    fallbacks=((By.CSS_SELECTOR, "mat-checkbox.cbIzaberi.mat-checkbox-checked"),),
+    # Nema ga dok se ne klikne, pa ``--proveri-selektore`` ne sme da ga traži.
+    optional=True,
+    state=LocatorState.CONFIRMED,  # portal, 29.07.2026
+)
+
 
 # ---------------------------------------------------------------------------
 # Forma rezervacije - datumi (3. korak)
@@ -337,20 +361,59 @@ SUBMIT_RESERVATION = _loc(
     state=LocatorState.CONFIRMED,  # portal, 27.07.2026
 )
 
-#: Jedino što se nije moglo videti bez stvarnog čuvanja rezervacije - ostaje zaključano
-#: do probne ture (faza 6).
+#: Klik na „Сачувај“ ne sačuva ništa odmah - portal otvori dijalog:
 #:
-#: Kad se do toga dođe, postoji i drugi, pouzdaniji znak: dugme „Odštampaj rezervaciju“
-#: je onemogućeno sve dok rezervacija ne bude sačuvana, pa je njegovo aktiviranje samo
-#: po sebi potvrda. Vidi ``VOUCHER_DOWNLOAD``.
+#:     Сачувај резервацију смештаја
+#:     Да ли сте сигурни да желите да сачувате резервацију смештаја?
+#:     [Не] [Да]
+#:
+#: Provereno probnom turom 29.07.2026. Bez ovog koraka rezervacija ostaje nesačuvana, a
+#: „Одштампај резервацију“ svejedno odštampa potvrdu iz sadržaja forme - pa se lako
+#: pomisli da je sve prošlo.
+SAVE_DIALOG = _loc(
+    "SAVE_DIALOG",
+    (By.CSS_SELECTOR, "mat-dialog-container"),
+    "Dijalog za potvrdu čuvanja rezervacije",
+    fallbacks=((By.CSS_SELECTOR, ".mat-dialog-container, .mat-mdc-dialog-container"),),
+    optional=True,
+    state=LocatorState.CONFIRMED,  # portal, 29.07.2026
+)
+
+#: Dugme „Да“ u tom dijalogu. Traži se **tačan** tekst i to samo unutar dijaloga -
+#: „Да“ je i početak pitanja koje stoji odmah iznad.
+SAVE_DIALOG_CONFIRM = _loc(
+    "SAVE_DIALOG_CONFIRM",
+    (By.XPATH, f"//mat-dialog-container//button[{tekst_je('да', 'da')}]"),
+    "Potvrda „Da“ u dijalogu za čuvanje",
+    fallbacks=(
+        (By.XPATH, f"//*[contains(@class, 'dialog')]//button[{tekst_je('да', 'da')}]"),
+    ),
+    # Opcion jer dijaloga nema dok se ne klikne „Sačuvaj“ - ``--proveri-selektore``
+    # gleda praznu formu, pa bi ga inače uvek prijavljivao kao pokvaren.
+    optional=True,
+    state=LocatorState.CONFIRMED,  # portal, 29.07.2026
+)
+
+#: **Portal ne ispisuje nikakvu poruku o uspehu.** Provereno probnom turom 29.07.2026:
+#: posle potvrde u dijalogu na strani nema ni snackbar-a, ni ``role="alert"``, ni bilo
+#: kakvog teksta - ostane samo prazan ``mat-dialog-container``.
+#:
+#: Zato se potvrda ne traži porukom nego po posledici: dugme „Одштампај резервацију“ je
+#: onemogućeno dok rezervacija nije sačuvana, pa je njegovo aktiviranje jedini pouzdan
+#: znak. Isto je viđeno i obrnuto - pre potvrde dijaloga dugme je bilo onemogućeno.
+#: Vidi ``ReservationPage.wait_until_saved``.
+#:
+#: Selektor ostaje kao opcion, za slučaj da portal jednog dana počne da javlja uspeh -
+#: tada ga ``--proveri-selektore`` pokupi i može da postane primarna provera.
 CONFIRMATION = _loc(
     "CONFIRMATION",
     # cvor="text()" gleda samo sopstveni tekst elementa - bez toga bi <html> i <body>
     # takođe "sadržali" reč i uvek bili prvi pogodak.
     (By.XPATH, f"//*[{tekst_sadrzi('успешно', 'uspesno', cvor='text()')}]"),
-    "Potvrda da je rezervacija sačuvana",
+    "Poruka o uspešnom čuvanju (portal je ne prikazuje)",
     fallbacks=((By.CSS_SELECTOR, ".mat-snack-bar-container, simple-snack-bar"),),
-    state=LocatorState.LOCKED,
+    optional=True,
+    state=LocatorState.GUESS,
 )
 
 

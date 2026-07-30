@@ -107,6 +107,13 @@ class PortalState:
     #: True = registracija za vaučere još nije otvorena, pa je čekboks za izbor prijave
     #: onemogućen. Tako portal izgleda van sezone (viđeno 27.07.2026).
     reservations_locked: bool = False
+    #: True = čuvanje "ne uhvati": forma ostane ista, dugme za štampu i dalje
+    #: onemogućeno. Tako izgleda kad potvrda u dijalogu ne prođe - a pravi portal
+    #: pritom **ne javlja nikakvu grešku** (viđeno 29.07.2026).
+    save_fails: bool = False
+    #: Koliko prvih preuzimanja pukne. Umesto vaučera stigne "greska.pdf" koji nije
+    #: PDF - tako izgleda kad štampa na portalu pukne.
+    voucher_errors: int = 0
 
     sessions: set[str] = field(default_factory=set)
     saved: list[dict] = field(default_factory=list)
@@ -307,12 +314,22 @@ class _Handler(BaseHTTPRequestHandler):
 
               {problem}
               <div class="radnje">
-                <button type="submit" class="btn">Sačuvaj</button>
+                <button type="button" class="btn" id="sacuvaj">Sačuvaj</button>
                 <button type="button" class="btn" disabled>
                   <mat-icon>cloud_download</mat-icon>Odštampaj rezervaciju
                 </button>
               </div>
             </form>
+
+            <!-- Pravi portal posle "Sačuvaj" traži potvrdu u dijalogu; dok se ne
+                 klikne "Da", ništa nije sačuvano. Vidi ReservationPage.submit(). -->
+            <mat-dialog-container id="dijalog" hidden>
+              <h2>Sačuvaj rezervaciju smeštaja</h2>
+              <p>Da li ste sigurni da želite da sačuvate rezervaciju smeštaja?</p>
+              <button type="button" id="dijalog-ne">Ne</button>
+              <button type="button" id="dijalog-da">Da</button>
+            </mat-dialog-container>
+
             <script>
               // Kroz korake se ide klikom, a neaktivni koraci su sakriveni - isto kao
               // mat-stepper. Zato se u kodu i mora kliknuti "dalje" pre nego što se
@@ -337,6 +354,19 @@ class _Handler(BaseHTTPRequestHandler):
                   polje.checked = !polje.checked;
                   cb.classList.toggle('mat-checkbox-checked', polje.checked);
                 }});
+              }});
+
+              // "Sačuvaj" samo otvara dijalog - forma se šalje tek na "Da".
+              const dijalog = document.getElementById('dijalog');
+              document.getElementById('sacuvaj').addEventListener('click', () => {{
+                dijalog.hidden = false;
+              }});
+              document.getElementById('dijalog-ne').addEventListener('click', () => {{
+                dijalog.hidden = true;
+              }});
+              document.getElementById('dijalog-da').addEventListener('click', () => {{
+                dijalog.hidden = true;
+                document.querySelector('form').submit();
               }});
 
               // Angular validira JMBG na izlazak iz polja; ovde radimo isto,
@@ -390,6 +420,12 @@ class _Handler(BaseHTTPRequestHandler):
                 self._reservation_page(f"Datum nije u očekivanom obliku: {data[polje]}")
                 return
 
+        if self.state.save_fails:
+            # Nijedna poruka, nikakav znak - samo forma kakva je i bila. Aplikacija ovo
+            # sme da prepozna jedino po tome što dugme za štampu ostaje onemogućeno.
+            self._reservation_page()
+            return
+
         self.state.saved.append(data)
 
         if self.state.expire_after is not None and len(self.state.saved) >= self.state.expire_after:
@@ -412,6 +448,18 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _voucher(self) -> None:
         index = len(self.state.saved)
+
+        if self.state.voucher_errors > 0:
+            # Štampa je pukla: stigne fajl koji se zove kao PDF a nije. Aplikacija sme
+            # da ga prepozna i ponovi preuzimanje, ne da ga preimenuje u ime gosta.
+            self.state.voucher_errors -= 1
+            self._send(
+                b"<html><body>Greska prilikom stampe rezervacije.</body></html>",
+                content_type="text/html",
+                extra_headers={"Content-Disposition": 'attachment; filename="greska.pdf"'},
+            )
+            return
+
         self._send(
             minimal_pdf(f"Vaucer {index}"),
             content_type="application/pdf",

@@ -1,9 +1,20 @@
-PySide6>=6.8
-selenium>=4.27
-python-dotenv>=1.0
+# Gornja granica je namerna. azuriraj.bat radi `pip install -r` pri svakom
+# azuriranju, pa bi nova glavna verzija PySide6 ili Seleniuma umela da obori
+# aplikaciju korisniku usred sezone prijava. Zakucane tacne verzije (==) se ovde
+# ne koriste: cim korisnikov Python bude noviji nego sto ta verzija podrzava,
+# postavi.bat pukne bez izlaza. Ovako pip sam bira zakrpu koja radi.
+
+PySide6>=6.8,<7
+selenium>=4.27,<5
+python-dotenv>=1.0,<2
+
+# potpisivanje vaucera - citanje PDF-a, sloj sa potpisom, obrada slike potpisa
+pypdf>=6.0,<7
+reportlab>=4.0,<5
+pillow>=10.0,<12
 
 # razvoj
 pytest>=8.0
 
 # alati - potrebno samo za regenerisanje primer/primer_gosti.xlsx
-openpyxl>=3.1
+openpyxl>=3.1,<4

@@ -27,6 +27,10 @@ class ErrorKind(str, Enum):
     #: Registracija za vaučere još nije otvorena - portal drži izbor prijave zaključan.
     #: Ovo nije greška u podacima nego u trenutku: ista je za sve goste, pa prekida turu.
     RESERVATION_LOCKED = "RESERVATION_LOCKED"
+    #: Kliknuto je „Sačuvaj“ ali nema dokaza da je rezervacija stvarno sačuvana.
+    #: Namerno **nije** retryable: ponovni pokušaj bi lako napravio duplu rezervaciju,
+    #: a portal ne nudi način da se ona poništi iz aplikacije.
+    RESERVATION_NOT_SAVED = "RESERVATION_NOT_SAVED"
 
     # --- greške sesije ---
     LOGIN_FAILED = "LOGIN_FAILED"

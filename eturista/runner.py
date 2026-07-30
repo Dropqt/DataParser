@@ -31,6 +31,7 @@ from .portal import selectors as S
 from .portal.login_page import LoginPage
 from .portal.reservation_page import ReservationPage
 from .portal.voucher_page import VoucherPage
+from .potpis import ORIGINALI, PotpisError, Raspored, potpisi_pdf
 from .store import Store
 
 
@@ -107,6 +108,8 @@ class Runner:
         self.options = options or RunOptions()
         self.reporter = reporter or Reporter()
         self.stop_event = stop_event or threading.Event()
+
+        self.raspored = Raspored.iz_env()
 
         self.session: BrowserSession | None = None
         self.login_page: LoginPage | None = None
@@ -279,7 +282,28 @@ class Runner:
         if not self.voucher_page.is_available:
             return None
         target = guest.voucher_dir(self.config.pdf_dir, self.options.default_email)
-        return self.voucher_page.download(guest, target, self.config.year)
+        pdf = self.voucher_page.download(guest, target, self.config.year)
+        self._sign_voucher(pdf)
+        return pdf
+
+    def _sign_voucher(self, pdf: str) -> None:
+        """Utisni potpis ugostitelja u preuzeti vaučer.
+
+        Neuspeh **ne obara gosta**: prijava na portalu je gotova i ne sme da se poništi
+        zbog slike. Vaučer ostane nepotpisan uz upozorenje u logu, pa se posle sredi
+        preko Alatke → „Potpiši vaučere u folderu".
+        """
+        if self.account.signature is None:
+            return
+        try:
+            potpisi_pdf(
+                Path(pdf),
+                self.account.signature,
+                self.raspored,
+                original_dir=self.config.pdf_dir / ORIGINALI,
+            )
+        except (PotpisError, OSError) as exc:
+            self.reporter.message(f"    potpis nije utisnut: {exc}", "WARN")
 
     def _recover(self) -> None:
         """Tvrd refresh forme - sledeći gost kreće od čistog stanja."""

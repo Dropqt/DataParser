@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 #: Koliko naloga tražimo u .env (ETURISTA_NALOG1_… do ETURISTA_NALOG3_…).
 MAX_ACCOUNTS = 3
@@ -14,6 +15,9 @@ class Account:
     label: str
     username: str
     password: str
+    #: Slika potpisa koja se utiskuje u vaučere prijavljene ovim nalogom. Nalog je
+    #: uvek ista osoba, pa se potpisnik ne bira posebno. None = nije podešeno.
+    signature: Path | None = None
 
     def __str__(self) -> str:
         return self.label
@@ -21,6 +25,23 @@ class Account:
     def masked(self) -> str:
         """Za log - nikad ne ispisujemo lozinku."""
         return f"{self.label} ({self.username})"
+
+
+def _signature_path(raw: str) -> Path | None:
+    """Razreši putanju do slike potpisa u odnosu na folder aplikacije.
+
+    Fajl koji ne postoji se tretira kao da nije ni podešen - aplikacija zbog toga ne
+    sme da ne krene, samo se vaučeri ne potpisuju i na to se upozorava pre ture.
+    """
+    from .config import app_dir
+
+    raw = raw.strip()
+    if not raw:
+        return None
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = app_dir() / path
+    return path if path.is_file() else None
 
 
 def load_accounts() -> list[Account]:
@@ -37,7 +58,14 @@ def load_accounts() -> list[Account]:
         if not username or not password:
             continue
         label = os.getenv(f"ETURISTA_NALOG{i}_NAZIV", "").strip() or f"nalog {i}"
-        accounts.append(Account(label=label, username=username, password=password))
+        accounts.append(
+            Account(
+                label=label,
+                username=username,
+                password=password,
+                signature=_signature_path(os.getenv(f"ETURISTA_NALOG{i}_POTPIS", "")),
+            )
+        )
     return accounts
 
 
