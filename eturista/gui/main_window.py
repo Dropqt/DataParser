@@ -5,13 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -28,12 +30,14 @@ from PySide6.QtWidgets import (
 )
 
 from ..accounts import Account, load_accounts
-from ..config import Config, app_dir, env_leak_warning
+from ..config import Config, env_leak_warning
 from ..models import Batch, Status
 from ..portal import selectors as S
+from ..potpis import Raspored, potpisi_folder
 from ..runner import RunOptions
 from ..store import Store
 from .guest_table import GuestTable, open_in_system
+from .settings_dialog import SettingsDialog
 from .table_model import GuestTableModel
 from .worker import RunWorker, SelectorCheckWorker, UpdateCheckWorker
 
@@ -60,7 +64,9 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
         self._load_accounts()
-        self._startup_checks()
+        # Odloženo za posle prvog crtanja: provere umeju da otvore dijalog, a on ne sme
+        # da iskoči pre nego što se glavni prozor uopšte pojavi.
+        QTimer.singleShot(0, self._startup_checks)
         self._update_status()
         self._check_for_update(quiet=True)
 
@@ -167,8 +173,13 @@ class MainWindow(QMainWindow):
         edit.addAction(self._action("Vrati greške u red", self._retry_failed))
 
         tools = self.menuBar().addMenu("&Alatke")
+        # Prečica se piše doslovno: QKeySequence.Preferences nije mapirana na Windows-u.
+        tools.addAction(self._action("Podešavanja…", self._settings, QKeySequence("Ctrl+,")))
+        tools.addSeparator()
         tools.addAction(self._action("Otvori folder sa vaučerima", self._open_pdf_dir))
         tools.addAction(self._action("Otvori folder sa screenshot-ovima", self._open_shot_dir))
+        tools.addSeparator()
+        tools.addAction(self._action("Potpiši vaučere u folderu…", self._sign_folder))
         tools.addSeparator()
         tools.addAction(self._action("Proveri selektore na portalu…", self._check_selectors))
         tools.addAction(self._action("Stanje selektora", self._show_selector_states))
@@ -196,6 +207,51 @@ class MainWindow(QMainWindow):
         self.account_box.addItems([account.label for account in self.accounts])
         self.account_box.setEnabled(bool(self.accounts))
 
+    def _settings(self) -> None:
+        """Podešavanja iz .env - unos u polja umesto ručnog uređivanja fajla."""
+        if self._is_running():
+            QMessageBox.information(
+                self, "Tura je u toku", "Sačekaj da se tura završi pa onda menjaj podešavanja."
+            )
+            return
+        dialog = SettingsDialog(self.config, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self._apply_settings()
+
+    def _apply_settings(self) -> None:
+        """Primeni novi .env bez restarta.
+
+        ``env_file.reload`` gazi ono što je već u okruženju - bez toga bi program i
+        dalje radio sa starom lozinkom, a da se ništa ne požali.
+        """
+        from ..env_file import reload as reload_env
+
+        old_db = self.config.db_path
+        reload_env()
+        self.config = Config.load()  # Config je frozen, pa se pravi nov objekat
+        self.config.ensure_dirs()
+        self.model.year = self.config.year
+
+        chosen = self.account_box.currentText()
+        self._load_accounts()
+        if (index := self.account_box.findText(chosen)) >= 0:
+            self.account_box.setCurrentIndex(index)
+
+        if not self.email_box.text().strip():
+            self.email_box.setText(self.config.default_email)
+
+        self._update_status()
+        self._log("Podešavanja su sačuvana.")
+
+        if self.config.db_path != old_db:
+            # Store je vezan za bazu pri otvaranju, a u njoj ume da stoji započeta
+            # tura - tiha zamena bi je izgubila.
+            QMessageBox.information(
+                self, "Podešavanja",
+                "Nova baza počinje da važi od sledećeg pokretanja programa.",
+            )
+
     def _startup_checks(self) -> None:
         warning = env_leak_warning()
         if warning:
@@ -203,13 +259,14 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Lozinke u gitu", warning)
 
         if not self.accounts:
-            path = app_dir() / ".env"
-            message = (
-                f"Nema podešenih naloga.\n\nNapravi fajl:\n{path}\n\n"
-                "po uzoru na .env.example, pa restartuj program."
+            self._log("Nema podešenih naloga", "WARN")
+            answer = QMessageBox.question(
+                self, "Nalozi nisu podešeni",
+                "Nema podešenih naloga, pa tura ne može da se pokrene.\n\n"
+                "Otvoriti podešavanja i uneti ih sada?",
             )
-            self._log("Nema podešenih naloga - vidi .env.example", "WARN")
-            QMessageBox.information(self, "Nalozi nisu podešeni", message)
+            if answer == QMessageBox.Yes:
+                self._settings()
 
         locked = S.locked()
         if locked:
@@ -310,7 +367,7 @@ class MainWindow(QMainWindow):
         if self._is_running():
             return
         if not self.accounts:
-            QMessageBox.warning(self, "Nema naloga", "Podesi naloge u .env fajlu.")
+            QMessageBox.warning(self, "Nema naloga", "Podesi naloge u Alatke -> Podešavanja.")
             return
 
         pending = self.batch.pending()
@@ -339,6 +396,17 @@ class MainWindow(QMainWindow):
             f"{len(locked)} selektora još nije podešeno "
             f"({', '.join(l.description for l in locked)}).\n\n"
             "Tura će verovatno pasti na tom koraku. Svejedno pokrenuti?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        ) != QMessageBox.Yes:
+            return
+
+        if account.signature is None and QMessageBox.question(
+            self,
+            "Nalog nema potpis",
+            f"Nalog {account.label} nema podešen potpis, pa će vaučeri ostati "
+            "nepotpisani.\n\nPodesi potpis u Alatke -> Podešavanja, ili ih posle potpiši "
+            "kroz Alatke → Potpiši vaučere u folderu.\n\nSvejedno pokrenuti?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         ) != QMessageBox.Yes:
@@ -445,10 +513,64 @@ class MainWindow(QMainWindow):
     def _open_shot_dir(self) -> None:
         open_in_system(self.config.screenshot_dir)
 
+    def _sign_folder(self) -> None:
+        """Naknadno potpisivanje vaučera preuzetih pre nego što je ovo postojalo.
+
+        Potpis se uzima iz naloga izabranog u traci. Već potpisani se preskaču, pa alat
+        sme da se pusti i dvaput preko istog foldera.
+        """
+        if self._is_running():
+            return
+        if not self.accounts:
+            QMessageBox.warning(self, "Nema naloga", "Podesi naloge u Alatke -> Podešavanja.")
+            return
+
+        account = self.accounts[self.account_box.currentIndex()]
+        if account.signature is None:
+            QMessageBox.warning(
+                self,
+                "Nalog nema potpis",
+                f"Nalog {account.label} nema podešen potpis.\n\n"
+                "Podesi potpis u Alatke -> Podešavanja.",
+            )
+            return
+
+        folder = QFileDialog.getExistingDirectory(
+            self, "Folder sa vaučerima", str(self.config.pdf_dir)
+        )
+        if not folder:
+            return
+
+        self._log(f"Potpisivanje vaučera u {folder} · nalog {account.label}…")
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            potpisano, preskoceno, greske = potpisi_folder(
+                Path(folder), account.signature, Raspored.iz_env()
+            )
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        self._log(
+            f"Potpisano {potpisano} · već potpisanih {preskoceno} · grešaka {len(greske)}",
+            "WARN" if greske else "INFO",
+        )
+        for pdf, razlog in greske:
+            self._log(f"  {pdf.name}: {razlog}", "WARN")
+
+        box = QMessageBox(
+            QMessageBox.Warning if greske else QMessageBox.Information,
+            "Potpisivanje vaučera",
+            f"Potpisano: {potpisano}\nVeć potpisanih: {preskoceno}\nGrešaka: {len(greske)}",
+            parent=self,
+        )
+        if greske:
+            box.setDetailedText("\n".join(f"{pdf.name}: {razlog}" for pdf, razlog in greske))
+        box.exec()
+
     def _check_selectors(self) -> None:
         if self._is_running() or not self.accounts:
             if not self.accounts:
-                QMessageBox.warning(self, "Nema naloga", "Podesi naloge u .env fajlu.")
+                QMessageBox.warning(self, "Nema naloga", "Podesi naloge u Alatke -> Podešavanja.")
             return
         account = self.accounts[self.account_box.currentIndex()]
         self._log(f"Provera selektora preko naloga {account.label}…")
@@ -577,8 +699,25 @@ class MainWindow(QMainWindow):
             self.worker.wait(15000)
         if self.update_worker is not None and self.update_worker.isRunning():
             self.update_worker.wait(2000)
+        self._remember_email()
         self.store.close()
         event.accept()
+
+    def _remember_email(self) -> None:
+        """Zapamti adresu iz trake u .env - README to obećava od početka.
+
+        Fajl se ovde ne pravi ako ga nema; samo se ažurira postojeći. Zatvaranje
+        programa ne sme da padne zbog toga što .env nije upisiv.
+        """
+        from ..env_file import env_path, write_env
+
+        address = self.email_box.text().strip().lower()
+        if address == self.config.default_email or not env_path().is_file():
+            return
+        try:
+            write_env({"ETURISTA_EMAIL": address})
+        except OSError:
+            pass
 
 
 class _BatchPicker(QDialog):

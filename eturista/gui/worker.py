@@ -92,6 +92,40 @@ class SelectorCheckWorker(QThread):
             self.done.emit(None)
 
 
+class LoginCheckWorker(QThread):
+    """Prijava na portal samo da se vidi da li korisničko ime i lozinka rade.
+
+    Namerno **ne** zove ``verify_selectors`` - on posle prijave otvara i formu za
+    rezervaciju, što traje duže i ume da padne na zaključanim selektorima van sezone,
+    a ovde se proverava samo nalog.
+    """
+
+    done = Signal(bool, str)  # uspelo, poruka
+
+    def __init__(self, config: Config, account: Account, parent=None) -> None:
+        super().__init__(parent)
+        self.config = config
+        self.account = account
+
+    def run(self) -> None:
+        from ..driver import BrowserSession
+        from ..portal.login_page import LoginPage
+
+        session = BrowserSession(
+            download_dir=self.config.pdf_dir / "_preuzimanje", headless=True
+        )
+        try:
+            driver = session.start()
+            login = LoginPage(driver, self.config.portal_url)
+            login.open()
+            login.login(self.account)
+            self.done.emit(True, f"Prijava na nalog '{self.account.label}' radi.")
+        except Exception as exc:
+            self.done.emit(False, str(exc))
+        finally:
+            session.quit()
+
+
 class UpdateCheckWorker(QThread):
     """Provera da li na GitHub-u ima novija verzija.
 

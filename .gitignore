@@ -2,9 +2,14 @@
 .env
 .env.local
 *.env
+# Privremeni fajl pri snimanju podesavanja - obrise se sam, ali ako program pukne
+# usred upisa ostane iza sebe, a u njemu su lozinke. Obrazac *.env ga ne hvata.
+.env.tmp
 !.env.example
 logins.txt
 accounts.json
+# Slike potpisa - isto sto i lozinka, nikad na javni repo
+potpisi/
 
 # === Podaci gostiju - licni podaci, ne idu u repo ===
 *.xlsx

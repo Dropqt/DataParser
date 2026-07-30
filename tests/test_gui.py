@@ -392,3 +392,145 @@ def test_toolbar_email_is_reported_before_the_run(window):
     opis = window._describe_voucher_dirs(window.model.guests, "vauceri@primer.rs")
     assert "vauceri@primer.rs: 1" in opis
     assert "ana@drugi.rs: 1" in opis
+
+
+# --- dijalog za podešavanja -------------------------------------------------
+
+from PySide6.QtWidgets import QLineEdit  # noqa: E402
+
+from eturista import config as config_module  # noqa: E402
+from eturista import env_file  # noqa: E402
+from eturista.gui.settings_dialog import SettingsDialog  # noqa: E402
+
+PRIMER_ENV = """\
+# Kopiraj u .env i popuni pravim podacima.
+
+# ---- Nalog 1 ----
+ETURISTA_NALOG1_NAZIV=majka
+ETURISTA_NALOG1_USER=
+ETURISTA_NALOG1_PASS=
+ETURISTA_NALOG1_POTPIS=
+
+# ---- Podesavanja ----
+ETURISTA_URL=https://www.portal.eturista.gov.rs
+ETURISTA_EMAIL=
+"""
+
+
+@pytest.fixture
+def env_folder(tmp_path, monkeypatch):
+    """Folder aplikacije premešten u tmp - i za env_file i za Config.load."""
+    (tmp_path / ".env.example").write_text(PRIMER_ENV, encoding="utf-8")
+    monkeypatch.setattr(env_file, "app_dir", lambda: tmp_path)
+    monkeypatch.setattr(config_module, "app_dir", lambda: tmp_path)
+    return tmp_path
+
+
+def test_settings_dialog_opens_without_an_env_file(qt_app, config, env_folder):
+    """Prvo pokretanje: .env još ne postoji, dijalog svejedno mora da se otvori."""
+    dialog = SettingsDialog(config)
+
+    assert dialog.tabs.count() == 4
+    # Podrazumevane vrednosti dolaze iz .env.example.
+    assert dialog.account_boxes[0].naziv.text() == "majka"
+
+
+def test_settings_dialog_loads_existing_values(qt_app, config, env_folder):
+    env_file.write_env({
+        "ETURISTA_NALOG1_NAZIV": "danica",
+        "ETURISTA_NALOG1_USER": "danica@primer.rs",
+        "ETURISTA_NALOG1_PASS": "tajna",
+    })
+    # Dijalog se drži u promenljivoj: bez toga ga Python odmah pokupi, a sa njim
+    # nestanu i Qt objekti njegovih polja.
+    dialog = SettingsDialog(config)
+    box = dialog.account_boxes[0]
+
+    assert (box.naziv.text(), box.korisnik.text(), box.lozinka.text()) == (
+        "danica", "danica@primer.rs", "tajna",
+    )
+
+
+def test_password_field_is_masked_and_can_be_revealed(qt_app, config, env_folder):
+    dialog = SettingsDialog(config)
+    box = dialog.account_boxes[0]
+
+    assert box.lozinka.echoMode() == QLineEdit.Password
+    box.prikazi.setChecked(True)
+    assert box.lozinka.echoMode() == QLineEdit.Normal
+    box.prikazi.setChecked(False)
+    assert box.lozinka.echoMode() == QLineEdit.Password
+
+
+def test_half_filled_account_is_refused(qt_app, config, env_folder):
+    dialog = SettingsDialog(config)
+    dialog.account_boxes[0].korisnik.setText("danica@primer.rs")  # bez lozinke
+
+    assert "Nalog 1" in dialog._problem()
+
+    dialog.account_boxes[0].lozinka.setText("tajna")
+    assert dialog._problem() is None
+
+
+def test_year_must_be_a_number(qt_app, config, env_folder):
+    dialog = SettingsDialog(config)
+    dialog.year.setText("dve hiljade")
+    assert "Godina" in dialog._problem()
+
+
+def test_signature_offset_accepts_a_decimal_comma(qt_app, config, env_folder):
+    """Srpski Excel piše 12,5 - to ne sme da bude greška."""
+    dialog = SettingsDialog(config)
+    dialog.potpis_visina.setText("12,5")
+    assert dialog._problem() is None
+
+
+def test_saving_writes_env_and_keeps_comments(qt_app, config, env_folder):
+    dialog = SettingsDialog(config)
+    dialog.account_boxes[0].korisnik.setText("danica@primer.rs")
+    dialog.account_boxes[0].lozinka.setText("tajna")
+    dialog.accept()
+
+    assert env_file.read_env()["ETURISTA_NALOG1_USER"] == "danica@primer.rs"
+    assert "# ---- Nalog 1 ----" in (env_folder / ".env").read_text(encoding="utf-8")
+
+
+def test_new_account_shows_up_without_a_restart(window, env_folder):
+    """Ovo je test koji čuva ``override=True`` u env_file.reload."""
+    assert window.account_box.count() == 2
+
+    env_file.write_env({
+        "ETURISTA_NALOG1_NAZIV": "mileta",
+        "ETURISTA_NALOG1_USER": "test",
+        "ETURISTA_NALOG1_PASS": "test123",
+        "ETURISTA_NALOG2_NAZIV": "majka",
+        "ETURISTA_NALOG2_USER": "test2",
+        "ETURISTA_NALOG2_PASS": "test234",
+        "ETURISTA_NALOG3_NAZIV": "zorica",
+        "ETURISTA_NALOG3_USER": "zorica@primer.rs",
+        "ETURISTA_NALOG3_PASS": "tajna3",
+    })
+    window._apply_settings()
+
+    labels = [window.account_box.itemText(i) for i in range(window.account_box.count())]
+    assert labels == ["mileta", "majka", "zorica"]
+
+
+def test_changed_password_really_takes_effect(window, env_folder):
+    """Bez override=True bi u okruženju ostala stara lozinka, bez ijedne poruke."""
+    env_file.write_env({
+        "ETURISTA_NALOG1_NAZIV": "mileta",
+        "ETURISTA_NALOG1_USER": "test",
+        "ETURISTA_NALOG1_PASS": "nova-lozinka",
+    })
+    window._apply_settings()
+
+    assert window.accounts[0].password == "nova-lozinka"
+
+
+def test_email_from_the_toolbar_is_remembered(window, env_folder):
+    env_file.create_if_missing()
+    window.email_box.setText("Vauceri@Primer.RS")
+    window._remember_email()
+
+    assert env_file.read_env()["ETURISTA_EMAIL"] == "vauceri@primer.rs"
