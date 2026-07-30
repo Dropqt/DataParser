@@ -12,7 +12,9 @@ Dve stvari koje su u prvoj turi bile pogrešne i ovde su rešene:
 
 from __future__ import annotations
 
+import os
 import shutil
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -32,8 +34,44 @@ _CHROME_BINARIES = (
     "chromium-browser",
 )
 
+#: Gde Chrome stoji na Windows-u. Isti spisak je ranije živeo samo u ``postavi.bat``,
+#: gde ga Python nije video - a treba i za pokretanje browsera i za proveru sistema.
+#: Na Windows-u Chrome po pravilu nije u PATH-u, pa ``shutil.which`` ne pomaže.
+_WINDOWS_CHROME_PATHS = (
+    r"%ProgramFiles%\Google\Chrome\Application\chrome.exe",
+    r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe",
+    r"%LocalAppData%\Google\Chrome\Application\chrome.exe",
+)
+
 #: Nastavci koje Chrome koristi dok download traje.
 _PARTIAL_SUFFIXES = (".crdownload", ".part", ".tmp", ".partial")
+
+
+def _windows_chrome() -> str | None:
+    """Chrome sa uobičajenih mesta na Windows-u, pa iz registra."""
+    for pattern in _WINDOWS_CHROME_PATHS:
+        expanded = os.path.expandvars(pattern)
+        # expandvars ostavlja %IME% kad promenljive nema - takva putanja se preskače.
+        if "%" not in expanded and Path(expanded).is_file():
+            return expanded
+
+    try:
+        import winreg
+    except ImportError:
+        return None
+
+    key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+    for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            with winreg.OpenKey(root, key) as handle:
+                path = winreg.QueryValue(handle, None)
+        except OSError:
+            continue
+        # Registar ume da nosi zastarelu putanju, a binary_location na nepostojeći
+        # fajl obara Chrome jače nego da nismo ništa vratili.
+        if path and Path(path).is_file():
+            return path
+    return None
 
 
 def find_chrome_binary() -> str | None:
@@ -42,6 +80,8 @@ def find_chrome_binary() -> str | None:
         path = shutil.which(name)
         if path:
             return path
+    if sys.platform == "win32":
+        return _windows_chrome()
     return None
 
 
@@ -135,6 +175,33 @@ class BrowserSession:
         """Zapamti šta je u download folderu pre nego što kliknemo na preuzimanje."""
         return set(self.download_dir.glob("*"))
 
+    def _finished_downloads(self, before: set[Path]) -> list[tuple[float, int, Path]]:
+        """Novi, završeni fajlovi kao ``(vreme izmene, veličina, putanja)``.
+
+        Dve zamke koje ovde moraju da se hvataju:
+
+        * Chrome usput pravi i briše sopstvene privremene fajlove
+          (``.org.chromium.Chromium.xxxxxx``). Oni nemaju nijedan od ``_PARTIAL_SUFFIXES``
+          pa bi prošli kao gotov download - zato se skriveni fajlovi preskaču.
+        * Takav fajl ume da nestane **između** izlistavanja i provere. ``stat()`` tada
+          baci ``FileNotFoundError`` koji nije ni ``PortalError`` ni ``WebDriverException``,
+          pa bi se probio kroz runner i oborio celu turu. Fajl koji je nestao se
+          jednostavno preskače.
+        """
+        found: list[tuple[float, int, Path]] = []
+        for path in self.download_dir.glob("*"):
+            if path in before or path.name.startswith("."):
+                continue
+            if path.suffix.lower() in _PARTIAL_SUFFIXES:
+                continue
+            try:
+                info = path.stat()
+            except OSError:
+                continue
+            if path.is_file():
+                found.append((info.st_mtime, info.st_size, path))
+        return found
+
     def wait_for_download(
         self,
         before: set[Path],
@@ -151,15 +218,12 @@ class BrowserSession:
         stable_since: float | None = None
 
         while time.monotonic() < deadline:
-            new_files = [
-                path for path in self.download_dir.glob("*")
-                if path not in before and path.is_file()
-            ]
-            finished = [p for p in new_files if p.suffix.lower() not in _PARTIAL_SUFFIXES]
+            finished = self._finished_downloads(before)
 
             if finished:
-                newest = max(finished, key=lambda p: p.stat().st_mtime)
-                size = newest.stat().st_size
+                # Veličina dolazi iz istog stat-a kao i vreme izmene - dva odvojena
+                # poziva su bila još jedno mesto gde je fajl mogao da nestane u pola.
+                _, size, newest = max(finished)
                 now = time.monotonic()
                 if size > 0 and size == stable_size:
                     if stable_since is not None and now - stable_since >= settle:

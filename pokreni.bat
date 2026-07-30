@@ -51,12 +51,11 @@ goto :kraj
 
 :bez_env
 echo.
-echo UPOZORENJE: nema .env fajla, pa aplikacija nema nijedan nalog za prijavu.
+echo Nema .env fajla, pa jos nema nijednog naloga za prijavu.
 echo.
-echo Pokreni postavi.bat - on ga napravi i otvori za popunjavanje.
-echo Aplikacija ce se svejedno otvoriti, ali tura ne moze da se pokrene.
+echo Aplikacija ce se svejedno otvoriti i sama ponuditi da ih unesete -
+echo meni Alatke -^> Podesavanja. Nista se ne mora uredjivati rucno.
 echo.
-pause
 goto :eof
 
 :kraj
