@@ -307,3 +307,52 @@ def test_leading_numbering_column_is_not_days_even_for_two_rows():
     result = parse_clipboard(text, YEAR)
     assert result.mapping.days is None
     assert all(g.stay.nights == 5 for g in result.guests)
+
+
+# --- naziv meseca u datumu --------------------------------------------------
+
+def test_month_name_column_is_recognized():
+    """Kolona sa 29.sep.2026 mora da se prepozna kao Dolazak i bez zaglavlja."""
+    text = f"Marko\tPetrović\t{A}\t29.sep.2026\t7\n"
+    result = parse_clipboard(text, YEAR)
+
+    assert result.mapping.date == 3
+    guest = result.guests[0]
+    assert guest.arrival_display == "29.09.2026"
+    assert guest.stay.nights == 7
+
+
+def test_days_cell_is_not_mistaken_for_a_date():
+    """"5 dana" ima broj pa reč, ali reč nije mesec - ne sme da postane datum."""
+    text = f"Marko\tPetrović\t{A}\t05.10.2026\t5 dana\n"
+    result = parse_clipboard(text, YEAR)
+
+    assert result.mapping.date == 3
+    assert result.guests[0].stay.nights == 5
+
+
+def test_word_paragraph_with_spaced_month_name():
+    """U pasusu iz Worda datum stiže kao tri reči - moraju da se spoje."""
+    text = f"Marko Petrović {A} 29. septembra 2026 7 dana\n"
+    guest = parse_clipboard(text, YEAR).guests[0]
+
+    assert (guest.given_name, guest.surname) == ("Marko", "Petrović")
+    assert guest.stay.arrival.month == 9
+    assert guest.stay.nights == 7
+
+
+def test_word_paragraph_with_cyrillic_month_name():
+    text = f"Marko Petrović {A} 29. септембра 2026\n"
+    guest = parse_clipboard(text, YEAR).guests[0]
+
+    assert guest.surname == "Petrović"
+    assert guest.stay.arrival.month == 9
+
+
+def test_guest_named_maja_keeps_her_name():
+    """"maja" je genitiv od maj, ali Maja je i žensko ime - ime je preče."""
+    text = f"Maja Petrović {A} 05.10.2026\n"
+    guest = parse_clipboard(text, YEAR).guests[0]
+
+    assert (guest.given_name, guest.surname) == ("Maja", "Petrović")
+    assert guest.stay.arrival.month == 10

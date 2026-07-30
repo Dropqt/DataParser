@@ -303,3 +303,67 @@ def test_folder_drops_characters_windows_refuses():
     assert email_folder("a:b@primer.rs") == "a_b@primer.rs"
     # Windows tiho odseca tačku na kraju, pa je sklanjamo sami
     assert not email_folder("marko@primer.rs.").endswith(".")
+
+
+# --- naziv meseca u datumu --------------------------------------------------
+
+from eturista.validation import month_from_name  # noqa: E402
+
+
+@pytest.mark.parametrize("raw", [
+    # srpski, latinica
+    "29.sep.2026", "29. sep 2026", "29 sep 2026", "29-sep-2026", "29/sep/2026",
+    "29.septembar.2026", "29. septembar 2026", "29. septembra 2026",
+    # srpski, ćirilica
+    "29.сеп.2026", "29. септембар 2026", "29. Септембра 2026",
+    # engleski
+    "29.Sep.2026", "29 September 2026",
+    # dvocifrena godina
+    "29.sep.26", "29. septembra 26",
+])
+def test_parse_arrival_accepts_month_names(raw):
+    assert parse_arrival(raw, 2026) == date(2026, 9, 29)
+
+
+def test_month_name_without_year_uses_default_year():
+    assert parse_arrival("29.sep", 2026) == date(2026, 9, 29)
+
+
+@pytest.mark.parametrize("word, expected", [
+    ("avg", 8), ("aug", 8), ("avgusta", 8),
+    ("okt", 10), ("oct", 10), ("октобра", 10),
+    ("мај", 5), ("maja", 5), ("may", 5),
+    ("dana", None), ("bezveze", None), ("", None),
+])
+def test_month_from_name(word, expected):
+    assert month_from_name(word) == expected
+
+
+def test_name_that_looks_like_a_month_is_not_a_date():
+    """"Maja" je i žensko ime i genitiv od maj - bez dana ispred nije datum."""
+    for text in ("Maja", "Maja Petrović", "maja 2026"):
+        with pytest.raises(ValidationError):
+            parse_arrival(text, 2026)
+
+
+def test_unknown_month_word_is_rejected():
+    with pytest.raises(ValidationError) as exc:
+        parse_arrival("29.xyz.2026", 2026)
+    assert exc.value.kind is ErrorKind.DATE_INVALID
+
+
+def test_dash_between_day_and_month_is_not_a_range():
+    """29-sep-2026 je jedan datum, pa se poštuje kolona Dana."""
+    stay = resolve_stay("29-sep-2026", "5", 2026)
+    assert stay.arrival == date(2026, 9, 29)
+    assert stay.nights == 5
+
+
+def test_range_with_month_names():
+    stay = parse_stay("5.okt-10.okt.2026", 2026)
+    assert (stay.arrival, stay.departure) == (date(2026, 10, 5), date(2026, 10, 10))
+
+
+def test_resolve_stay_with_month_name():
+    stay = resolve_stay("29. septembra 2026", "7", 2026)
+    assert stay.format() == "29.09.2026-06.10.2026"

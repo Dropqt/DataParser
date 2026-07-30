@@ -174,6 +174,35 @@ def validate_jmbg(raw: str) -> JmbgInfo:
 #: Jedan datum: 5.10 / 05.10. / 5-10-2026 / 05/10/26 …
 _ONE_DATE = re.compile(r"^(\d{1,2})\s*[.\-/]\s*(\d{1,2})(?:\s*[.\-/]\s*(\d{2,4}))?\.?$")
 
+#: Nazivi meseci koji se priznaju umesto broja. Drže se **latinizovano**, jer
+#: ``latinize()`` svodi i ćirilicu i velika slova na ASCII (септембар → septembar),
+#: pa jedan spisak pokriva oba pisma. Uz skraćenicu i puni naziv stoji i genitiv,
+#: jer se u praksi piše i "29. septembra 2026". Engleski je tu zbog Excela na
+#: engleskom Windows-u; poklapa se sa srpskim svuda sem avg/aug i okt/oct.
+_MONTH_NAMES = {
+    1: ("jan", "januar", "januara", "january"),
+    2: ("feb", "februar", "februara", "february"),
+    3: ("mar", "mart", "marta", "march"),
+    4: ("apr", "april", "aprila"),
+    5: ("maj", "maja", "may"),
+    6: ("jun", "juna", "juni", "june"),
+    7: ("jul", "jula", "juli", "july"),
+    8: ("avg", "avgust", "avgusta", "aug", "august"),
+    9: ("sep", "sept", "septembar", "septembra", "september"),
+    10: ("okt", "oktobar", "oktobra", "oct", "october"),
+    11: ("nov", "novembar", "novembra", "november"),
+    12: ("dec", "decembar", "decembra", "december"),
+}
+
+#: Naziv meseca → broj meseca.
+_MONTHS = {naziv: broj for broj, nazivi in _MONTH_NAMES.items() for naziv in nazivi}
+
+#: Datum sa nazivom meseca: 29.sep.2026 / 29. septembar 2026 / 29-sep-26 / 29 sep 2026.
+#: Godina sme da izostane, kao i kod čisto brojčanog zapisa.
+_DATE_BY_NAME = re.compile(
+    r"^(\d{1,2})\s*[.\-/ ]\s*([^\W\d_]{3,})\s*[.\-/ ]?\s*(\d{2,4})?\s*\.?$", re.UNICODE
+)
+
 #: Kandidati za razdvajanje opsega, od najjasnijeg ka najdvosmislenijem.
 _RANGE_SEPARATORS = ("–", "—", " do ", " Do ", " DO ", ";", ",", "/", " - ", "-")
 
@@ -205,13 +234,32 @@ class Stay:
         return self.format()
 
 
-def _parse_one_date(text: str, default_year: int) -> date | None:
-    match = _ONE_DATE.match(text.strip())
-    if not match:
-        return None
+def month_from_name(word: str) -> int | None:
+    """Broj meseca iz naziva, u oba pisma i bez obzira na velika slova.
 
-    day, month = int(match.group(1)), int(match.group(2))
-    raw_year = match.group(3)
+    ``None`` znači da reč nije naziv meseca.
+    """
+    return _MONTHS.get(latinize(word))
+
+
+def _parse_one_date(text: str, default_year: int) -> date | None:
+    text = text.strip()
+
+    match = _ONE_DATE.match(text)
+    if match:
+        day, month = int(match.group(1)), int(match.group(2))
+        raw_year = match.group(3)
+    else:
+        # Naziv meseca se priznaje samo kad ceo tekst ima oblik datuma - broj, pa
+        # naziv, pa po želji godina. Bez toga bi "Maja Petrović" prošlo kao datum:
+        # posle latinize() je "maja" i ime i genitiv od maj.
+        match = _DATE_BY_NAME.match(text)
+        if not match:
+            return None
+        month = month_from_name(match.group(2))
+        if month is None:
+            return None
+        day, raw_year = int(match.group(1)), match.group(3)
 
     if raw_year is None:
         year = default_year
@@ -304,7 +352,10 @@ def parse_stay(raw: str, default_year: int | None = None) -> Stay:
 
 
 def parse_arrival(raw: str, default_year: int | None = None) -> date:
-    """Pročitaj jedan datum dolaska: ``05.10``, ``5.10.2026``, ``05/10``…"""
+    """Pročitaj jedan datum dolaska: ``05.10``, ``5.10.2026``, ``05/10``, ``29.sep.2026``…
+
+    Mesec sme da bude i ispisan rečju, u oba pisma i na engleskom - vidi ``_MONTH_NAMES``.
+    """
     text = (raw or "").strip()
     if not text:
         raise ValidationError(ErrorKind.MISSING_FIELD, "Datum dolaska nije unet")
@@ -313,7 +364,8 @@ def parse_arrival(raw: str, default_year: int | None = None) -> date:
     if arrival is None:
         raise ValidationError(
             ErrorKind.DATE_INVALID,
-            f"Ne mogu da pročitam datum dolaska iz {text!r} - očekujem npr. 05.10 ili 05.10.2026",
+            f"Ne mogu da pročitam datum dolaska iz {text!r} - "
+            "očekujem npr. 05.10, 05.10.2026 ili 5.okt.2026",
         )
     return arrival
 

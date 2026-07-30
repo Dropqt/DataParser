@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 
 from .models import EXPORT_HEADERS, Guest
-from .validation import DEFAULT_DAYS, latinize
+from .validation import DEFAULT_DAYS, latinize, month_from_name
 
 # --- prepoznavanje zaglavlja ------------------------------------------------
 
@@ -36,6 +36,10 @@ _FULL_NAME_HEADERS = ("ime_i_prezime", "imeiprezime", "gost", "putnik", "prezime
 
 _DATEISH = re.compile(r"\d{1,2}\s*[.\-/]\s*\d{1,2}")
 _LETTER = re.compile(r"[^\W\d_]", re.UNICODE)
+
+#: Broj pa reč - kandidat za datum sa nazivom meseca (``29.sep.2026``). Da li je reč
+#: zaista mesec presuđuje ``month_from_name``, pa "5 dana" ne prolazi kao datum.
+_DATE_BY_NAME_ISH = re.compile(r"\b\d{1,2}\s*[.\-/ ]\s*([^\W\d_]{3,})", re.UNICODE)
 
 
 @dataclass
@@ -157,8 +161,13 @@ def _looks_like_jmbg(cell: str) -> bool:
     return len(digits) in (12, 13) and not _DATEISH.search(cell)
 
 
+def _has_named_month(cell: str) -> bool:
+    """Ćelija oblika ``29.sep.2026`` - broj, pa naziv meseca."""
+    return any(month_from_name(m.group(1)) is not None for m in _DATE_BY_NAME_ISH.finditer(cell))
+
+
 def _looks_like_date(cell: str) -> bool:
-    return bool(_DATEISH.search(cell)) and not _looks_like_jmbg(cell)
+    return (bool(_DATEISH.search(cell)) or _has_named_month(cell)) and not _looks_like_jmbg(cell)
 
 
 def _looks_like_days(cell: str) -> bool:
@@ -315,9 +324,45 @@ _DAYS_WORDS = frozenset({"dana", "dan", "noc", "noci", "nocenja", "nocenje", "da
 _DIGIT_TOKEN = re.compile("^[\\d\\s.\u2013\u2014/-]+$")
 
 
+#: Broj koji sme da počne datum sa nazivom meseca, sa tačkom ili bez ("29." / "29").
+_DAY_TOKEN = re.compile(r"^(\d{1,2})(\.?)$")
+
+#: Godina na kraju takvog datuma ("2026", "26", "2026.").
+_YEAR_TOKEN = re.compile(r"^(\d{2,4})\.?$")
+
+
 def _tokens(line: str) -> list[str]:
     """Red slobodnog teksta na reči, bez numeracije liste i bez zareza."""
     return [word for word in re.split(r"[\s,;|]+", _LIST_MARKER.sub("", line.strip())) if word]
+
+
+def _join_named_dates(words: list[str]) -> list[str]:
+    """Spoji ``29. septembra 2026`` u jednu reč, da bi se pročitalo kao datum.
+
+    U tabeli je datum cela ćelija, ali u pasusu iz Worda stiže kao tri odvojene reči.
+    Spaja se samo kad je nedvosmisleno: broj **sa tačkom** pa mesec, ili broj pa mesec
+    pa godina. Inače bi ``1 Maja Petrović`` ispalo kao 1. maj - posle ``latinize()``
+    je "maja" i žensko ime i genitiv od *maj*.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(words):
+        day = _DAY_TOKEN.match(words[i])
+        naredna = words[i + 1] if i + 1 < len(words) else ""
+        if day is not None and month_from_name(naredna) is not None:
+            mesec = naredna.strip(".,")
+            year = _YEAR_TOKEN.match(words[i + 2]) if i + 2 < len(words) else None
+            if year is not None:
+                out.append(f"{day.group(1)}.{mesec}.{year.group(1)}")
+                i += 3
+                continue
+            if day.group(2):  # tačka posle dana - "29. septembra", godina se podrazumeva
+                out.append(f"{day.group(1)}.{mesec}")
+                i += 2
+                continue
+        out.append(words[i])
+        i += 1
+    return out
 
 
 def _read_free_text_row(line: str) -> dict[str, str]:
@@ -337,7 +382,7 @@ def _read_free_text_row(line: str) -> dict[str, str]:
     date_at: list[int] = []
     days_at: list[int] = []
 
-    for index, word in enumerate(_tokens(line)):
+    for index, word in enumerate(_join_named_dates(_tokens(line))):
         cell = word.strip(":.,;()[]<>\"'")
         if not cell:
             continue
@@ -345,7 +390,7 @@ def _read_free_text_row(line: str) -> dict[str, str]:
             email = cell
         elif not jmbg and _DIGIT_TOKEN.match(cell) and len(re.sub(r"\D", "", cell)) in (12, 13):
             jmbg = cell
-        elif _DATEISH.search(cell):
+        elif _DATEISH.search(cell) or _has_named_month(cell):
             dates.append(cell)
             date_at.append(index)
         elif _looks_like_days(cell):
