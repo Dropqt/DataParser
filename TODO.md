@@ -21,6 +21,10 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
 - [x] JMBG: naučna notacija iz Excela se odbija sa uputstvom
 - [x] Datumi: **datum dolaska + broj dana** (prazno = 5 noćenja), prelazak u novu godinu
 - [x] Stari zapis sa opsegom (`05.10-10.10`) i dalje se prepoznaje, pa stare liste rade
+- [x] Datumi: mesec sme da bude ispisan rečju (`29.sep.2026`, `29. септембра 2026`,
+      `29 September 2026`), skraćeno i puno, u oba pisma, sa dvocifrenom godinom.
+      Reč se čita kao mesec samo kad joj prethodi dan - inače bi gost po imenu
+      **Maja** postao 1. maj
 - [x] Ctrl+V iz Excela: TSV, prepoznavanje kolona iz zaglavlja ili po sadržaju
 - [x] Ctrl+C nazad: `STATUS` / `RAZLOG` / `PDF` kolone
 - [x] Redosled kolona `Ime · Prezime · JMBG · Dolazak · Dana · …` - isti u aplikaciji i u primeru,
@@ -66,6 +70,19 @@ Glavni pregled stanja. Ažurira se kako se stvari završavaju.
       više ne kucaju ručno nego izvode iz zaglavlja
 - [x] Po jedan radni list za svaki nalog (**Danica · Mileta · Zorica**), prazni i spremni
       za unos; izmišljeni gosti prebačeni na zaseban list **Primeri**
+
+### Podešavanja u aplikaciji
+- [x] **Alatke → Podešavanja** (`Ctrl+,`) - nalozi, folderi, vaučeri, ostalo. Kraj
+      uređivanja `.env` u Notepad-u
+- [x] Upis u `.env` **čuva komentare** iz `.env.example` i menja vrednosti u mestu;
+      piše preko privremenog fajla pa `os.replace`, da prekid ne ostavi polupisan fajl
+- [x] Lozinka maskirana, sa dugmetom *Prikaži*; *Proveri prijavu* se stvarno prijavi
+      na portal pre nego što se išta snimi
+- [x] Primenjuje se **bez restarta** (`load_dotenv(override=True)` - bez toga bi stara
+      lozinka tiho ostala). Jedini izuzetak je promena baze, i to se kaže
+- [x] Kad nema naloga, aplikacija ponudi da otvori podešavanja umesto da uputi na fajl
+- [x] Polje *Vaučeri na:* se stvarno pamti u `.env` - README je to tvrdio i pre nego
+      što je radilo
 
 ### Alati
 - [x] `primer/primer_gosti.xlsx` - Excel sa gotovom JMBG proverom (kolona H),
@@ -115,6 +132,18 @@ nije otvorio rezervacije“** umesto da meli istu grešku kroz sve goste.
       (sad je obrnuto - `2026_PETROVIC_MARKO.pdf`). Menja se `Guest.pdf_name`
       u `eturista/models.py`, plus test koji proverava nazive.
       Ostaje kako jeste: čist ASCII i verzal, zbog Windows-a.
+
+### Windows - postavljanje i ažuriranje
+- [x] `run.py --provera-sistema` - Python, biblioteke, Chrome, git, folderi, nalozi.
+      Logika je u Pythonu, ne u `.bat`-u, pa može da se testira i radi na oba sistema
+- [x] `postavi.bat` je skraćen na 4 koraka i na kraju zove tu proveru; ručno traženje
+      Chrome-a i `import PySide6, selenium, dotenv` više ne stoje u dva primerka
+- [x] `azuriraj.bat` - `git pull` + `pip install` + provera, jednim duplim klikom.
+      Javlja i kad `git` uopšte nije instaliran, što ranije niko nije proveravao
+- [x] `driver.py` zna gde je Chrome na Windows-u (Program Files, LocalAppData,
+      registar). To znanje je pre stajalo samo u `postavi.bat`, gde ga Python ne vidi
+- [x] `requirements.txt` sa gornjim granicama - nova glavna verzija PySide6 ili
+      Seleniuma ne može da obori korisnika usred sezone
 
 ### Faza 7 - pakovanje i paralelni režim
 - [ ] PyInstaller: Linux binary
@@ -200,5 +229,14 @@ i jedan primer gotovog vaučera da se vidi gde ima mesta.
 - Provera "ima li greške ispod polja" čeka 1.5s po gostu i kad greške nema. Za 30 gostiju
   je to ~45s viška; može se skratiti kad se vidi kako portal stvarno prikazuje greške
 - Prvo pokretanje ikad zna da potraje ~30s dok Selenium skine chromedriver
+- **Prijava se pod opterećenjem ume lažno prikazati kao uspela.**
+  `LoginPage._wait_until_submitted` zaključuje da je prijava prošla čim polje za
+  korisničko ime nije vidljivo. Kad je računar zauzet, forma prosto još nije stigla
+  da se iscrta, pa pogrešna lozinka prođe kao ispravna: tura se vuče dalje i svaki
+  gost padne kao `SESSION_EXPIRED` umesto da odmah pukne sa „prijava nije uspela“.
+  Popravka je da se čeka **potvrda** prijave, a ne odsustvo forme - isto ono što je
+  već urađeno za čuvanje rezervacije (`wait_until_saved`).
+  Test koji je ovo pokrivao je izbačen jer je merio brzinu mašine, ne kod; vratiti ga
+  zajedno sa popravkom
 - Ako program pukne baš usred jednog gosta, taj gost dobija napomenu da se ručno proveri -
   ne možemo znati da li je prijava prošla na portalu pre pada

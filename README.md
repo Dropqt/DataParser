@@ -13,23 +13,72 @@ Zamenjuje `legacy/data_loop.py` iz prve ture.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-cp .env.example .env      # pa popuni korisnička imena i lozinke
+cp .env.example .env      # naloge unesi u aplikaciji: Alatke → Podešavanja
 ```
 
 Treba i **Chrome ili Chromium** na sistemu. Chromedriver se skida automatski pri prvom
 pokretanju (Selenium Manager) - prvi put ume da potraje tridesetak sekundi.
 
-Na Windows-u ista tri koraka radi **`postavi.bat`** (dupli klik). Proveri da li ima
-Python i Chrome, napravi `.venv`, instalira biblioteke i napravi `.env` iz `.env.example`.
-Može da se pokrene i više puta: postojeći `.venv` se koristi, a `.env` se nikad ne
-prepisuje.
+Na Windows-u ista tri koraka radi **`postavi.bat`** (dupli klik): nađe Python, napravi
+`.venv`, instalira biblioteke, napravi `.env` iz `.env.example` i na kraju proveri da
+sve zaista radi (Chrome, git, folderi, nalozi). Može da se pokrene i više puta:
+postojeći `.venv` se koristi, a `.env` se nikad ne prepisuje.
 
 Posle toga se aplikacija pokreće duplim klikom na **`pokreni.bat`** - on uzima Python iz
 `.venv` foldera i otvara prozor aplikacije, bez komandne linije iza njega (`pythonw`).
 Ako `.venv` ili biblioteke fale, uputi na `postavi.bat` umesto da tiho ne uradi ništa.
 
+Na noviju verziju se prelazi duplim klikom na **`azuriraj.bat`**: povuče izmene sa
+GitHub-a, doinstalira šta je dodato i proveri da sve i dalje radi. `.env` ne dira.
+
+Tri `.bat` fajla, po jedan za svaku priliku:
+
+| Fajl | Kada |
+|---|---|
+| `postavi.bat` | jednom, na novom računaru |
+| `pokreni.bat` | svaki put kad se radi |
+| `azuriraj.bat` | kad stigne poruka da ima novija verzija |
+
+### Provera da li sve radi
+
+```bash
+.venv/bin/python run.py --provera-sistema
+```
+
+Ispiše da li ima Python 3.10+, sve biblioteke, Chrome, git, upisive foldere i bar jedan
+podešen nalog. Isti izveštaj zove i `postavi.bat` na kraju postavljanja, pa je provera
+na jednom mestu i može da se testira - `.bat` logika ne može.
+
+Redovi označeni sa `[GRESKA]` znače da aplikacija još ne može da radi; `[pazi]` znači
+da radi, ali nešto nedostaje (npr. git treba samo za `azuriraj.bat`).
+
+Uz `--pripremi-drajver` odmah skine i chromedriver, dok računar sigurno ima internet -
+inače to čeka prvu turu i izgleda kao da se program zaglavio.
+
 > `.env` drži lozinke i nalazi se u `.gitignore`. Repo je javan, pa aplikacija pri
 > pokretanju proveri da `.env` nije slučajno ušao u git i upozori ako jeste.
+
+### Podešavanja
+
+`.env` ne mora da se uređuje rukom. Sve što je u njemu stoji i u aplikaciji, u
+**Alatke → Podešavanja** (`Ctrl+,`), u četiri jezička:
+
+| Jezičak | Šta je unutra |
+|---|---|
+| **Nalozi** | tri naloga: naziv, korisnik, lozinka (maskirana, sa dugmetom *Prikaži*), slika potpisa |
+| **Folderi** | gde idu vaučeri, screenshot-ovi i baza |
+| **Vaučeri** | adresa za razvrstavanje, godina u nazivu PDF-a, položaj potpisa u milimetrima |
+| **Ostalo** | adresa portala, rad bez prozora, provera nove verzije |
+
+Dugme **Proveri prijavu** se stvarno prijavi na portal izabranim nalogom, pre nego što
+se išta snimi - lozinka se tako proveri odmah, a ne tek kad tura krene.
+
+Snimanje **čuva komentare** iz `.env.example`, menja samo vrednosti na njihovim
+mestima, i piše preko privremenog fajla, pa prekid usred upisa ne ostavlja polupisan
+`.env`. Sve sem promene baze važi **odmah, bez restarta** - novi nalog se pojavi u
+padajućem meniju istog trena.
+
+Kad naloga uopšte nema, aplikacija sama ponudi da otvori ovaj prozor.
 
 ## Pokretanje
 
@@ -37,6 +86,9 @@ Ako `.venv` ili biblioteke fale, uputi na `postavi.bat` umesto da tiho ne uradi 
 .venv/bin/python run.py                      # aplikacija
 .venv/bin/python run.py --proveri-selektore  # provera da li selektori važe na portalu
 .venv/bin/python run.py --lazni-portal       # lokalni lažni portal za probu
+.venv/bin/python run.py --pripremi-potpis U I  # screenshot potpisa -> providni PNG
+.venv/bin/python run.py --kalibracija PDF    # gde bi potpis pao na ovom vaučeru
+.venv/bin/python run.py --provera-sistema    # ima li Python, biblioteke, Chrome, nalozi
 ```
 
 ---
@@ -84,6 +136,24 @@ znači 5 noćenja - koliko traje minimalni vaučer. `5 dana` znači 5 noćenja, 
 
 Stari opseg i dalje radi: ako u koloni sa datumom nađe `05.10-10.10`, aplikacija ga pročita
 kao i pre, a kolonu `Dana` tad ignoriše. Stare liste iz prve ture ne treba prepravljati.
+
+#### Mesec ispisan rečju
+
+Datum sme da ima i naziv meseca umesto broja, pa se tuđe liste ne prekucavaju:
+
+```
+29.sep.2026        29. septembar 2026      29. septembra 2026
+29-sep-2026        29. септембар 2026      29 September 2026
+29.sep.26          29.sep                  5.okt-10.okt.2026
+```
+
+Prihvata se skraćenica i pun naziv, **latinica i ćirilica**, srpski i engleski, kao i
+genitiv (`septembra`) - tako se datum i izgovara. Dvocifrena godina (`26`) znači 2026, a
+ako godine nema uzima se `ETURISTA_GODINA`. Nepoznata reč i dalje daje istu grešku kao
+pre, pa se tipfeler vidi u tabeli.
+
+> Reč se čita kao mesec **samo kad joj neposredno prethodi dan**. Bez tog pravila bi
+> gost po imenu **Maja** postao 1. maj, jer je `maja` i žensko ime i genitiv od *maj*.
 
 ### Listovi u `primer_gosti.xlsx`
 
@@ -139,14 +209,72 @@ vauceri/
   ana@drugi.rs/        2026_ANA_ANIC.pdf
 ```
 
-Adresa se upisuje **jednom**, u polje *Vaučeri na:* iznad tabele (pamti se u `.env` kao
-`ETURISTA_EMAIL`). Kolona `E-mail` se popunjava samo za goste čiji vaučeri idu negde
-drugde - prazna ćelija znači adresu iz tog polja.
+Adresa se upisuje **jednom**, u polje *Vaučeri na:* iznad tabele. Pri zatvaranju
+programa se pamti u `.env` kao `ETURISTA_EMAIL`, pa sledeći put stoji ista - može i
+ručno, u *Alatke → Podešavanja*. Kolona `E-mail` se popunjava samo za goste čiji
+vaučeri idu negde drugde - prazna ćelija znači adresu iz tog polja.
 
 Ako se polje ostavi prazno, vaučeri ostaju u korenu `vauceri/`, kao i pre.
 
 Pre nego što tura krene, u log se ispiše koliko vaučera ide u koji folder - bolje da se
 pogrešna adresa vidi odmah nego da se posle traži gde je 30 PDF-ova završilo.
+
+### Potpisivanje vaučera
+
+Vaučer ima pri dnu polje **ПОТПИС УГОСТИТЕЉА** - natpis pa vodoravna crta ispod njega.
+Aplikacija tu utisne sliku potpisa **odmah po preuzimanju**, pa PDF stiže na disk već
+potpisan.
+
+Koji potpis ide određuje **nalog** kojim je gost prijavljen - nalog je uvek ista osoba,
+pa se potpisnik ne bira posebno.
+
+**1. Napravi sliku potpisa.** Potpiši se na belom papiru, uslikaj ili skeniraj, pa:
+
+```bash
+.venv/bin/python run.py --pripremi-potpis ~/Slike/potpis.png potpisi/danica.png
+```
+
+Alat odseče bele margine, pretvori svetlinu u providnost i pojača kontrast. Radi
+lokalno - **slika sopstvenog potpisa ne treba da ode ni na kakav online alat.** Ispiše i
+koliko je potpis oštar; ispod 200 dpi se na štampi vidi mekoća, pa vredi uslikati izbliza.
+
+**2. Upiši je uz nalog u `.env`:**
+
+```ini
+ETURISTA_NALOG1_NAZIV=danica
+ETURISTA_NALOG1_POTPIS=potpisi/danica.png
+```
+
+Folder `potpisi/` je u `.gitignore`, isto kao `.env`. Nalog bez podešenog potpisa i dalje
+radi - samo pre pokretanja ture pita da li si siguran.
+
+**Nepotpisani original** se čuva u `vauceri/_bez_potpisa/`. Stoji iznad foldera po e-mail
+adresama, pa ne ulazi u grupu koja se kači na mejl.
+
+**Vaučeri preuzeti ranije** se potpisuju naknadno: *Alatke → Potpiši vaučere u folderu…*
+Uzima potpis izabranog naloga i prolazi kroz sve PDF-ove u folderu. Već potpisani se
+prepoznaju po markeru u metapodacima i preskaču, pa alat sme da se pusti i dvaput.
+
+**Ako potpis ne legne** - obrazac promenjen, slika obrisana - gost svejedno ostaje
+**zeleno prijavljen**, uz upozorenje u logu. Prijava na portalu je gotova i ne poništava
+se zbog slike; vaučer se posle sredi alatkom iz prethodnog pasusa.
+
+#### Kad ministarstvo promeni obrazac
+
+Potpis se ne postavlja na fiksne koordinate nego se **traži natpis u tekstu PDF-a** i
+meri od njega, pa pomeranje reda u obrascu ništa ne kvari. Traže se obe reči zajedno -
+sama reč *УГОСТИТЕЉА* stoji i u naslovu iznad, a *ПОТПИС* i u polju za potpis gosta ispod.
+
+Ako se ipak pomeri sam odnos natpisa i crte, prvo pogledaj gde bi potpis pao:
+
+```bash
+.venv/bin/python run.py --kalibracija "vauceri/2026_PETROVIC_MARKO.pdf"
+```
+
+Snima kopiju sa crvenim okvirom na mestu potpisa. Brojevi se onda podese u `.env`
+(`ETURISTA_POTPIS_VISINA`, `_POMAK_X`, `_POMAK_Y`, `_MAX_SIRINA`), sve u milimetrima.
+Podrazumevane vrednosti su izmerene na vaučeru iz 2025: od donje ivice natpisa do crte
+ima svega 28 pt, pa potpis visok 12 mm sedi na crti i prelazi malo preko nje.
 
 ### Bojenje u glavnom Excelu
 
@@ -192,7 +320,8 @@ Poredi se tvoj lokalni commit sa `main`, pa dobijaš i tačan broj commit-a zaos
 nema lažne uzbune kad si lokalno ispred. Ručno: *Pomoć → Proveri ima li nove verzije*.
 Isključivanje: `ETURISTA_PROVERA_AZURIRANJA=false` u `.env`.
 
-Ovo **samo javlja** - ne instalira ništa. Ažuriranje je `git pull` pa ponovo pokreni.
+Ovo **samo javlja** - ne instalira ništa. Ažuriranje je `git pull` pa ponovo pokreni,
+a na Windows-u dupli klik na `azuriraj.bat`.
 
 ---
 
@@ -205,7 +334,7 @@ Gost koji je bio u obradi kad je program pukao dobija napomenu da se ručno prov
 ## Struktura
 
 ```
-run.py                      ulazna tačka (GUI / provera selektora / lažni portal)
+run.py                      ulazna tačka (GUI / selektori / lažni portal / potpisi)
 eturista/
   validation.py             JMBG (kontrolna cifra) i datumi boravka
   clipboard.py              Ctrl+V iz Excela, Ctrl+C nazad
@@ -213,6 +342,9 @@ eturista/
   store.py                  SQLite: ture, gosti, greške, nastavak posle prekida
   driver.py                 Chrome + preuzimanje fajlova
   runner.py                 orkestracija ture
+  potpis.py                 utiskivanje potpisa u PDF vaučer
+  env_file.py               upis u .env uz čuvanje komentara
+  provera.py                --provera-sistema: zavisnosti, Chrome, nalozi
   portal/
     selectors.py            ★ SVI selektori portala su ovde i nigde drugde
     base_page.py            WebDriverWait helperi (nema time.sleep)
@@ -220,22 +352,45 @@ eturista/
     reservation_page.py
     voucher_page.py
   gui/                      PySide6 prozor, tabela sa bojama, radne niti
+    settings_dialog.py      Alatke → Podešavanja
+alati/pripremi_potpis.py    screenshot potpisa -> providni PNG
 fake_portal/app.py          lokalni lažni portal za razvoj i testove
-tests/                      172 testa
+tests/                      201 test
 legacy/data_loop.py         prototip iz prve ture, čuva se za referencu
 ```
 
 ### Kako izgleda forma na portalu
 
-Rezervacija je wizard sa tri koraka (provereno 27.07.2026):
+Rezervacija je wizard sa tri koraka (provereno probnom turom 29.07.2026):
 
 1. **Podaci o korisniku vaučera** - ime, prezime, JMBG
 2. **Prijava ugostitelja za šemu** - tabela objekata; bira se čekboks u redu.
-   Van sezone je taj čekboks zaključan i to je jedino što nas deli od prve ture
+   Van sezone je taj čekboks zaključan; od 29.07.2026. je otvoren.
 3. **Ostali podaci** - datum dolaska i odlaska, pa *Sačuvaj* i *Odštampaj rezervaciju*
 
 Dve stvari koje deluju kao sitnica a lome tok: dugme za sledeći korak nema **nikakav
 tekst** (samo ikonicu), a datum se piše **bez vodeće nule** - `5.10.2026`, ne `05.10.2026`.
+
+Tabela prijava na drugom koraku stiže **zasebnim zahtevom**, oko sekundu posle otvaranja
+forme. Zato `--proveri-selektore` ume da javi da `SCHEME_ROW` ne radi iako radi - ta
+provera gleda DOM bez čekanja.
+
+#### Čuvanje ima dva koraka, a portal ne javlja uspeh
+
+Klik na *Сачувај* ne sačuva ništa odmah - otvori se dijalog:
+
+> **Сачувај резервацију смештаја**
+> Да ли сте сигурни да желите да сачувате резервацију смештаја?
+> \[Не] \[Да]
+
+Tek *Да* sačuva. Posle toga **nema nikakve poruke o uspehu** - ni snackbar-a, ni
+`role="alert"`, ostane samo prazan `mat-dialog-container`. Zato se ne čeka poruka nego
+posledica: dugme *Одштампај резервацију* je onemogućeno dok rezervacija nije sačuvana,
+pa je njegovo aktiviranje jedini pouzdan znak (`ReservationPage.wait_until_saved`).
+
+Ovo se ne sme preskočiti. Portal na klik **odštampa potvrdu iz sadržaja forme čak i kad
+rezervacija nije sačuvana** - bez ove provere bi na disk legao uredan, potpisan vaučer
+za rezervaciju koja na portalu ne postoji. Viđeno u probnoj turi.
 
 ### Kad portal izmeni sajt
 
